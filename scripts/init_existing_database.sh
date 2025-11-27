@@ -37,4 +37,4 @@ gcloud compute ssh "$VM_NAME" \
     --command="gsutil cp $INIT_SCRIPT /tmp/init-${HOSPITAL_UUID}.sh && chmod +x /tmp/init-${HOSPITAL_UUID}.sh && sudo /tmp/init-${HOSPITAL_UUID}.sh"
 
 echo ""
-echo "✅ Database initialization complete!"
+echo "Database initialization complete!"
