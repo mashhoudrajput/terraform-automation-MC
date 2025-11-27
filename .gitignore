@@ -1,0 +1,69 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform.lock.hcl
+backend.tf
+!backend.tf.template
+terraform.tfvars
+!terraform.tfvars.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+apply.log
+destroy.log
+
+# Environment
+.env
+.env.local
+
+# Credentials
+terraform-sa.json
+*-sa.json
+*.pem
+*.key
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Deployment workspaces (old test directories - should be removed)
+terraform_deployments/
+deployments/
+
+# Data directory (runtime only)
+data/
+!data/.gitkeep
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backups
+*.backup
+*.bak
