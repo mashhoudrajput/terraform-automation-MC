@@ -27,6 +27,7 @@ terraform.tfvars
 .idea/
 *.swp
 *.swo
+.cursor/
 
 # Logs
 *.log
