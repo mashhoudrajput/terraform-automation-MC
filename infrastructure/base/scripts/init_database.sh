@@ -36,7 +36,15 @@ else
     fi
 fi
 
-sleep 30
+echo "Waiting for database connection to be ready..."
+for i in {1..12}; do
+  sleep 5
+  if mysql -h $${DB_HOST} -u $${DB_USER} -p'$${DB_PASSWORD}' -e "SELECT 1;" > /dev/null 2>&1; then
+    echo "Database connection ready"
+    break
+  fi
+  echo "Waiting for database... ($i/12)"
+done
 
 if [ "${is_sub_hospital}" = "true" ] && [ -z "${db_password}" ]; then
     echo "Sub-hospital: Getting password from parent secret"

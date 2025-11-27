@@ -230,24 +230,45 @@ resource "null_resource" "database_init" {
     init_script_id   = google_storage_bucket_object.init_script.id
     cluster_uuid     = var.cluster_uuid
     is_sub_hospital  = var.is_sub_hospital ? "true" : "false"
+    db_name          = google_sql_database.database.name
+    sn_tables_id     = google_storage_bucket_object.sn_tables_sql.id
+    cluster_db_id    = var.is_sub_hospital ? "" : google_storage_bucket_object.cluster_db_sql[0].id
   }
 
   provisioner "local-exec" {
     command = <<-EOT
+      set -e
       BUCKET_NAME="${var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name}"
       INIT_SCRIPT="gs://$${BUCKET_NAME}/database-init/${var.cluster_uuid}/init.sh"
-      gcloud compute ssh ${var.init_vm_name} \
+      
+      echo "=========================================="
+      echo "Database Initialization Starting"
+      echo "Hospital UUID: ${var.cluster_uuid}"
+      echo "Is Sub-Hospital: ${var.is_sub_hospital ? "true" : "false"}"
+      echo "Database Name: ${google_sql_database.database.name}"
+      echo "Bucket: $${BUCKET_NAME}"
+      echo "=========================================="
+      
+      echo "Waiting for database to be ready..."
+      sleep 15
+      
+      echo "Copying and executing initialization script..."
+      if gcloud compute ssh ${var.init_vm_name} \
         --zone=${var.region}-a \
         --project=${var.project_id} \
-        --command="gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh" || true
+        --command="gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh"; then
+        echo "✅ Database initialization completed successfully"
+      else
+        echo "❌ Database initialization failed"
+        exit 1
+      fi
     EOT
   }
 
   depends_on = [
     google_sql_database.database,
     google_storage_bucket_object.init_script,
-    google_storage_bucket_object.sn_tables_sql,
-    google_storage_bucket_object.cluster_db_sql
+    google_storage_bucket_object.sn_tables_sql
   ]
 }
 
