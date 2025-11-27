@@ -50,7 +50,7 @@ echo "$HOSPITALS" | while IFS='|' read -r uuid name parent; do
     gcloud compute ssh "$VM_NAME" \
       --zone="$ZONE" \
       --project="$PROJECT_ID" \
-      --command="gsutil cp gs://$BUCKET/database-init/$uuid/init.sh /tmp/init-$uuid.sh && chmod +x /tmp/init-$uuid.sh && sudo /tmp/init-$uuid.sh" || echo "  ❌ Failed"
+      --command="gsutil cp gs://$BUCKET/database-init/$uuid/init.sh /tmp/init-$uuid.sh && chmod +x /tmp/init-$uuid.sh && sudo /tmp/init-$uuid.sh" || echo "  Failed"
     
   else
     # Sub-hospital - use parent's bucket
