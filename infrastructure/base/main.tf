@@ -257,9 +257,9 @@ resource "null_resource" "database_init" {
         --zone=${var.region}-a \
         --project=${var.project_id} \
         --command="gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh"; then
-        echo "✅ Database initialization completed successfully"
+        echo "Database initialization completed successfully"
       else
-        echo "❌ Database initialization failed"
+        echo "Database initialization failed"
         exit 1
       fi
     EOT

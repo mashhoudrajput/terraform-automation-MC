@@ -40,7 +40,7 @@ echo "$HOSPITALS" | while IFS='|' read -r uuid name parent; do
     # Main hospital
     BUCKET=$(curl -s "$API_URL/api/clients/$uuid/outputs" 2>/dev/null | jq -r '.private_bucket_name // empty')
     if [ -z "$BUCKET" ]; then
-      echo "  ⚠️  No outputs available, skipping..."
+      echo "  No outputs available, skipping..."
       continue
     fi
     
@@ -56,7 +56,7 @@ echo "$HOSPITALS" | while IFS='|' read -r uuid name parent; do
     # Sub-hospital - use parent's bucket
     PARENT_BUCKET=$(curl -s "$API_URL/api/clients/$parent/outputs" 2>/dev/null | jq -r '.private_bucket_name // empty')
     if [ -z "$PARENT_BUCKET" ]; then
-      echo "  ⚠️  No parent outputs available, skipping..."
+      echo "  No parent outputs available, skipping..."
       continue
     fi
     
@@ -71,7 +71,7 @@ echo "$HOSPITALS" | while IFS='|' read -r uuid name parent; do
 done
 
 echo ""
-echo "✅ Initialization complete!"
+echo "Initialization complete!"
 echo ""
 echo "Verify tables:"
 echo "  mysql -h 10.7.1.39 -u dbadmin -p mashhoud_hospital -e 'SHOW TABLES;'"
