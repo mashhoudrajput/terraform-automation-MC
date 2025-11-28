@@ -1,0 +1,45 @@
+USE ${db_name};
+
+CREATE OR REPLACE VIEW user AS 
+SELECT u.* FROM ${parent_db_name}.user AS u 
+JOIN ${parent_db_name}.user_subnetwork AS usn ON u.id = usn.user_id AND usn.is_deleted = 0
+WHERE u.is_deleted = 0 AND usn.subnetwork_id = '${subnetwork_id}'
+UNION ALL 
+SELECT * FROM ${parent_db_name}.user WHERE is_deleted = 0 AND user_type = 'admin';
+
+CREATE OR REPLACE VIEW user_sub_specialty AS 
+SELECT uss.* FROM ${parent_db_name}.user_sub_specialty AS uss 
+JOIN ${parent_db_name}.user AS u ON u.id = uss.user_id AND u.is_deleted = 0 
+JOIN ${parent_db_name}.user_subnetwork AS usn ON usn.user_id = u.id AND usn.is_deleted = 0 
+WHERE uss.is_deleted = 0 AND usn.subnetwork_id = '${subnetwork_id}';
+
+CREATE OR REPLACE VIEW topics AS 
+SELECT * FROM ${parent_db_name}.topics WHERE is_deleted = 0;
+
+CREATE OR REPLACE VIEW network_feed AS 
+SELECT ${parent_db_name}.network_feed.* FROM ${parent_db_name}.network_feed 
+JOIN ${parent_db_name}.topics ON (${parent_db_name}.topics.id = ${parent_db_name}.network_feed.topic_id AND ${parent_db_name}.topics.is_deleted = 0) 
+WHERE ${parent_db_name}.network_feed.is_deleted = 0;
+
+CREATE OR REPLACE VIEW broadcast_list AS 
+SELECT * FROM ${parent_db_name}.broadcast_list
+WHERE is_deleted = 0 AND is_default_network_list = 1 AND network_id = '${subnetwork_id}';
+
+CREATE OR REPLACE VIEW broadcast_list_users AS 
+SELECT blu.* FROM ${parent_db_name}.broadcast_list_users AS blu 
+JOIN ${parent_db_name}.broadcast_list AS bl ON bl.id = blu.broadcast_list_id AND bl.is_deleted = 0 AND bl.is_default_network_list = 1
+JOIN ${parent_db_name}.user AS u ON u.id = blu.user_id AND u.is_deleted = 0 
+WHERE blu.is_deleted = 0 AND bl.network_id = '${subnetwork_id}';
+
+CREATE OR REPLACE VIEW profession AS 
+SELECT * FROM ${parent_db_name}.profession WHERE is_deleted = 0;
+
+CREATE OR REPLACE VIEW ranks AS 
+SELECT * FROM ${parent_db_name}.ranks WHERE is_deleted = 0;
+
+CREATE OR REPLACE VIEW specialty AS 
+SELECT * FROM ${parent_db_name}.specialty WHERE is_deleted = 0;
+
+CREATE OR REPLACE VIEW sub_specialty AS 
+SELECT * FROM ${parent_db_name}.sub_specialty WHERE is_deleted = 0;
+

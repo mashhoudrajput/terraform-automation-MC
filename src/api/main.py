@@ -376,19 +376,20 @@ async def register_sub_hospital(
         logger.info(f"Registered sub-hospital: {client.uuid} - {request.client_name} under parent {parent_uuid}")
         client_service.update_client_status(db, client.uuid, ClientStatusEnum.IN_PROGRESS)
         
-        parent_outputs = client_service.parse_terraform_outputs(parent_hospital.terraform_outputs)
-        if not parent_outputs or not parent_outputs.db_instance_name:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not retrieve parent database instance name for sub-hospital provisioning."
-            )
-        
-        client_info = {
-            "client_name": request.client_name,
-            "environment": request.environment,
-            "region": request.region,
-            "parent_uuid": parent_uuid
-        }
+                parent_outputs = client_service.parse_terraform_outputs(parent_hospital.terraform_outputs)
+                if not parent_outputs or not parent_outputs.db_instance_name:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Could not retrieve parent database instance name for sub-hospital provisioning."
+                    )
+                
+                client_info = {
+                    "client_name": request.client_name,
+                    "environment": request.environment,
+                    "region": request.region,
+                    "parent_uuid": parent_uuid,
+                    "parent_database_name": parent_outputs.get("database_name", "")
+                }
         
         logger.info(f"Starting Terraform deployment for sub-hospital {client.uuid} (parent: {parent_uuid})")
         success, outputs, error_message = terraform_service.run_full_deployment(

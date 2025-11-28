@@ -201,6 +201,21 @@ resource "google_storage_bucket_object" "sn_tables_sql" {
   source = "${path.module}/sql/sn_tables.sql"
 }
 
+resource "google_storage_bucket_object" "sub_network_views_sql" {
+  count  = var.is_sub_hospital ? 1 : 0
+  name   = "database-init/${var.cluster_uuid}/sub_network_views.sql"
+  bucket = data.google_storage_bucket.parent_private[0].name
+  content = templatefile("${path.module}/sql/sub_network_views.sql.template", {
+    db_name       = google_sql_database.database.name
+    parent_db_name = data.google_sql_database_instance.parent[0].database_version != "" ? local.database_name : replace(replace(var.parent_instance_name, "mc-cluster-", ""), "-", "_")
+    subnetwork_id = var.cluster_uuid
+  })
+  
+  depends_on = [
+    google_sql_database.database
+  ]
+}
+
 resource "google_storage_bucket_object" "init_script" {
   name    = "database-init/${var.cluster_uuid}/init.sh"
   bucket  = var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name
@@ -277,7 +292,8 @@ resource "null_resource" "database_init" {
   depends_on = [
     google_sql_database.database,
     google_storage_bucket_object.init_script,
-    google_storage_bucket_object.sn_tables_sql
+    google_storage_bucket_object.sn_tables_sql,
+    google_storage_bucket_object.sub_network_views_sql
   ]
 }
 

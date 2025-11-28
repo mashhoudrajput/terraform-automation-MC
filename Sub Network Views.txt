@@ -1,0 +1,32 @@
+USE rc_cluster_a;
+CREATE VIEW user AS SELECT u.* FROM riyadh_city_cluster.user AS u JOIN
+riyadh_city_cluster.user_subnetwork AS usn ON u.id = usn.user_id AND usn.is_deleted = 0
+WHERE u.is_deleted = 0 AND usn.subnetwork_id = 'f9d9a0ce-d69e-4901-be02-
+eb61c921697a'
+Union All admin user;
+CREATE VIEW user_sub_specialty AS SELECT uss.* FROM
+riyadh_city_cluster.user_sub_specialty AS uss JOIN riyadh_city_cluster.user AS u ON u.id =
+uss.user_id AND u.is_deleted = 0 JOIN riyadh_city_cluster.user_subnetwork AS usn ON
+usn.user_id = u.id AND usn.is_deleted = 0 WHERE uss.is_deleted = 0 AND
+usn.subnetwork_id = 'f9d9a0ce-d69e-4901-be02-eb61c921697a';
+CREATE VIEW topics AS SELECT * FROM riyadh_city_cluster.topics WHERE is_deleted = 0;
+CREATE VIEW network_feed AS SELECT riyadh_city_cluster.network_feed.* FROM
+riyadh_city_cluster.network_feed JOIN riyadh_city_cluster.topics ON
+(riyadh_city_cluster.topics.id = riyadh_city_cluster.network_feed.topic_id AND
+riyadh_city_cluster.topics.is_deleted = 0) WHERE
+riyadh_city_cluster.network_feed.is_deleted = 0;
+CREATE VIEW broadcast_list AS SELECT * FROM riyadh_city_cluster.broadcast_list
+WHERE is_deleted = 0 AND is_default_network_list = 1 AND network_id = 'f9d9a0ce-d69e-
+4901-be02-eb61c921697a';
+CREATE VIEW broadcast_list_users AS SELECT blu.* FROM
+riyadh_city_cluster.broadcast_list_users AS blu JOIN riyadh_city_cluster.broadcast_list AS
+bl ON bl.id = blu.broadcast_list_id AND bl.is_deleted = 0 AND bl.is_default_network_list = 1
+JOIN riyadh_city_cluster.user AS u ON u.id = blu.user_id AND u.is_deleted = 0 WHERE
+blu.is_deleted = 0 AND bl.network_id = 'f9d9a0ce-d69e-4901-be02-eb61c921697a';
+CREATE VIEW profession AS SELECT * FROM riyadh_city_cluster.profession WHERE
+is_deleted = 0;
+CREATE OR REPLACE VIEW ranks AS SELECT * FROM riyadh_city_cluster.ranks WHERE
+is_deleted = 0;CREATE VIEW specialty AS SELECT * FROM riyadh_city_cluster.specialty WHERE
+is_deleted = 0;
+CREATE VIEW sub_specialty AS SELECT * FROM riyadh_city_cluster.sub_specialty WHERE
+is_deleted = 0;
