@@ -237,7 +237,6 @@ resource "null_resource" "database_init" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      set -e
       BUCKET_NAME="${var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name}"
       INIT_SCRIPT="gs://$${BUCKET_NAME}/database-init/${var.cluster_uuid}/init.sh"
       
@@ -249,6 +248,13 @@ resource "null_resource" "database_init" {
       echo "Bucket: $${BUCKET_NAME}"
       echo "=========================================="
       
+      if ! command -v gcloud &> /dev/null; then
+        echo "WARNING: gcloud not found. Database initialization will be skipped."
+        echo "Please run the initialization manually using:"
+        echo "  gcloud compute ssh ${var.init_vm_name} --zone=${var.region}-a --project=${var.project_id} --command='gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh'"
+        exit 0
+      fi
+      
       echo "Waiting for database to be ready..."
       sleep 15
       
@@ -256,11 +262,14 @@ resource "null_resource" "database_init" {
       if gcloud compute ssh ${var.init_vm_name} \
         --zone=${var.region}-a \
         --project=${var.project_id} \
-        --command="gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh"; then
+        --command="gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh" 2>&1; then
         echo "Database initialization completed successfully"
       else
-        echo "Database initialization failed"
-        exit 1
+        echo "WARNING: Database initialization failed. This is non-critical."
+        echo "Database and infrastructure are created. You can initialize tables manually later."
+        echo "Manual initialization command:"
+        echo "  gcloud compute ssh ${var.init_vm_name} --zone=${var.region}-a --project=${var.project_id} --command='gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh'"
+        exit 0
       fi
     EOT
   }
