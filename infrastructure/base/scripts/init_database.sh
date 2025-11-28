@@ -13,39 +13,29 @@ if ! command -v mysql &> /dev/null; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq default-mysql-client google-cloud-sdk
 fi
 
+# SQL files are stored directly on VM at /opt/sql/
+# No need to copy from GCS - files are already on the VM
 mkdir -p /tmp/sql/${cluster_uuid}
 
 if [ "${is_sub_hospital}" = "true" ]; then
-    echo "Sub-hospital mode: Copying sn_tables.sql and sub_network_views.sql"
-    gsutil -q cp gs://${bucket_name}/database-init/${cluster_uuid}/sn_tables.sql /tmp/sql/${cluster_uuid}/ || true
-    gsutil -q cp gs://${bucket_name}/database-init/${cluster_uuid}/sub_network_views.sql /tmp/sql/${cluster_uuid}/ || true
-    if [ ! -f /tmp/sql/${cluster_uuid}/sn_tables.sql ]; then
-        echo "ERROR: Failed to copy sn_tables.sql"
+    echo "Sub-hospital mode: Using sn_tables.sql from VM"
+    if [ -f /opt/sql/sn_tables.sql ]; then
+        cp /opt/sql/sn_tables.sql /tmp/sql/${cluster_uuid}/sn_tables.sql
+    else
+        echo "ERROR: sn_tables.sql not found at /opt/sql/sn_tables.sql"
         exit 1
     fi
 else
-    echo "Main hospital mode: Copying ClusterDB.sql and sn_tables.sql"
-    gsutil -q cp gs://${bucket_name}/database-init/${cluster_uuid}/ClusterDB.sql /tmp/sql/${cluster_uuid}/ || true
-    gsutil -q cp gs://${bucket_name}/database-init/${cluster_uuid}/sn_tables.sql /tmp/sql/${cluster_uuid}/ || true
-    if [ ! -f /tmp/sql/${cluster_uuid}/ClusterDB.sql ]; then
-        echo "ERROR: Failed to copy ClusterDB.sql"
-        exit 1
-    fi
-    if [ ! -f /tmp/sql/${cluster_uuid}/sn_tables.sql ]; then
-        echo "ERROR: Failed to copy sn_tables.sql"
+    echo "Main hospital mode: Using ClusterDB.sql from VM"
+    if [ -f /opt/sql/ClusterDB.sql ]; then
+        cp /opt/sql/ClusterDB.sql /tmp/sql/${cluster_uuid}/ClusterDB.sql
+    else
+        echo "ERROR: ClusterDB.sql not found at /opt/sql/ClusterDB.sql"
         exit 1
     fi
 fi
 
-echo "Waiting for database connection to be ready..."
-for i in {1..12}; do
-  sleep 5
-  if mysql -h $${DB_HOST} -u $${DB_USER} -p'$${DB_PASSWORD}' -e "SELECT 1;" > /dev/null 2>&1; then
-    echo "Database connection ready"
-    break
-  fi
-  echo "Waiting for database... ($i/12)"
-done
+sleep 30
 
 if [ "${is_sub_hospital}" = "true" ] && [ -z "${db_password}" ]; then
     echo "Sub-hospital: Getting password from parent secret"
@@ -79,8 +69,21 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-if [ "${is_sub_hospital}" != "true" ]; then
-    echo "Running ClusterDB.sql..."
+if [ "${is_sub_hospital}" = "true" ]; then
+    echo "Running sn_tables.sql for sub-hospital..."
+    if [ -f /tmp/sql/${cluster_uuid}/sn_tables.sql ]; then
+        mysql -h $${DB_HOST} -u $${DB_USER} -p'$${DB_PASSWORD}' -D ${db_name} < /tmp/sql/${cluster_uuid}/sn_tables.sql
+        if [ $? -ne 0 ]; then
+            echo "ERROR: Failed to execute sn_tables.sql"
+            exit 1
+        fi
+        echo "sn_tables.sql executed successfully"
+    else
+        echo "ERROR: sn_tables.sql not found"
+        exit 1
+    fi
+else
+    echo "Running ClusterDB.sql for main hospital..."
     if [ -f /tmp/sql/${cluster_uuid}/ClusterDB.sql ]; then
         mysql -h $${DB_HOST} -u $${DB_USER} -p'$${DB_PASSWORD}' -D ${db_name} < /tmp/sql/${cluster_uuid}/ClusterDB.sql
         if [ $? -ne 0 ]; then
@@ -94,37 +97,10 @@ if [ "${is_sub_hospital}" != "true" ]; then
     fi
 fi
 
-echo "Running sn_tables.sql..."
-if [ -f /tmp/sql/${cluster_uuid}/sn_tables.sql ]; then
-    mysql -h $${DB_HOST} -u $${DB_USER} -p'$${DB_PASSWORD}' -D ${db_name} < /tmp/sql/${cluster_uuid}/sn_tables.sql
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Failed to execute sn_tables.sql"
-        exit 1
-    fi
-    echo "sn_tables.sql executed successfully"
-else
-    echo "ERROR: sn_tables.sql not found"
-    exit 1
-fi
-
-if [ "${is_sub_hospital}" = "true" ]; then
-    echo "Running sub_network_views.sql..."
-    if [ -f /tmp/sql/${cluster_uuid}/sub_network_views.sql ]; then
-        mysql -h $${DB_HOST} -u $${DB_USER} -p'$${DB_PASSWORD}' -D ${db_name} < /tmp/sql/${cluster_uuid}/sub_network_views.sql
-        if [ $? -ne 0 ]; then
-            echo "ERROR: Failed to execute sub_network_views.sql"
-            exit 1
-        fi
-        echo "sub_network_views.sql executed successfully"
-    else
-        echo "WARNING: sub_network_views.sql not found (optional for sub-hospitals)"
-    fi
-fi
-
 TABLE_COUNT=$$(mysql -h $${DB_HOST} -u $${DB_USER} -p'$${DB_PASSWORD}' -D ${db_name} -e "SHOW TABLES;" | wc -l)
 echo "Tables created: $((TABLE_COUNT - 1))"
 
 echo "SUCCESS" > /tmp/db-init-${cluster_uuid}-complete
-gsutil -q cp /tmp/db-init-${cluster_uuid}-complete gs://${bucket_name}/database-init/${cluster_uuid}/ || true
+# Success marker saved locally (GCS upload removed - using VM directly)
 
 echo "Database Initialization Completed: $(date)"

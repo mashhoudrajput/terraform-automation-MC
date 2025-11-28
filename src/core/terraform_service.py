@@ -85,8 +85,6 @@ class TerraformService:
             parent_uuid = client_info.get('parent_uuid')
             parent_instance_name = f"mc-cluster-{parent_uuid.replace('_', '-')}"
         
-        parent_database_name = client_info.get('parent_database_name', '')
-        
         tfvars_content = f"""project_id   = "{settings.gcp_project_id}"
 region       = "{client_info.get('region', settings.gcp_region)}"
 environment  = "{environment}"
@@ -94,7 +92,6 @@ cluster_uuid = "{client_uuid}"
 created_date = "{current_date}"
 is_sub_hospital = {str(is_sub_hospital).lower()}
 parent_instance_name = "{parent_instance_name}"
-parent_database_name = "{parent_database_name}"
 hospital_name = "{hospital_name}"
 """
         
