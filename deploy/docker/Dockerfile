@@ -13,6 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     curl \
     ca-certificates \
+    gnupg \
+    apt-transport-https \
+    && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
+    && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg \
+    && apt-get update && apt-get install -y --no-install-recommends google-cloud-sdk \
     && rm -rf /var/lib/apt/lists/*
 
 ARG TERRAFORM_VERSION=1.6.6
