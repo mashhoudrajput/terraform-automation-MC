@@ -103,16 +103,16 @@ download_sql_files() {
     
     log_info "Downloading SQL files from GCS bucket: $${BUCKET_NAME}"
     
-    # Download sn_tables.sql (always needed)
-    if gsutil cp "gs://$${BUCKET_NAME}/database-init/$${CLUSTER_UUID}/sn_tables.sql" "$${temp_dir}/sn_tables.sql" 2>/dev/null; then
-        log_info "Downloaded sn_tables.sql"
+    if [ "$${IS_SUB_HOSPITAL}" = "true" ]; then
+        # Sub-Hospital: Download only sn_tables.sql
+        if gsutil cp "gs://$${BUCKET_NAME}/database-init/$${CLUSTER_UUID}/sn_tables.sql" "$${temp_dir}/sn_tables.sql" 2>/dev/null; then
+            log_info "Downloaded sn_tables.sql"
+        else
+            log_error "Failed to download sn_tables.sql"
+            exit 1
+        fi
     else
-        log_error "Failed to download sn_tables.sql"
-        exit 1
-    fi
-    
-    # Download ClusterDB.sql only for main hospitals
-    if [ "$${IS_SUB_HOSPITAL}" != "true" ]; then
+        # Main Hospital: Download only ClusterDB.sql
         if gsutil cp "gs://$${BUCKET_NAME}/database-init/$${CLUSTER_UUID}/ClusterDB.sql" "$${temp_dir}/ClusterDB.sql" 2>/dev/null; then
             log_info "Downloaded ClusterDB.sql"
         else
@@ -173,13 +173,9 @@ main() {
             exit 1
         fi
     else
-        # Main Hospital: Run ClusterDB.sql first, then sn_tables.sql
-        log_info "Main Hospital detected: Running ClusterDB.sql and sn_tables.sql"
+        # Main Hospital: Run only ClusterDB.sql
+        log_info "Main Hospital detected: Running ClusterDB.sql only"
         if ! execute_sql_file "$${temp_dir}/ClusterDB.sql" "ClusterDB.sql (Main-Hospital tables)"; then
-            exit 1
-        fi
-        
-        if ! execute_sql_file "$${temp_dir}/sn_tables.sql" "sn_tables.sql (Sub-Hospital tables)"; then
             exit 1
         fi
     fi
