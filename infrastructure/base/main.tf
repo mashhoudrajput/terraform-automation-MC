@@ -239,12 +239,15 @@ resource "null_resource" "database_init" {
 
   provisioner "local-exec" {
     command = <<-EOT
+      set -e
       BUCKET_NAME="${var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name}"
       INIT_SCRIPT="gs://$${BUCKET_NAME}/database-init/${var.cluster_uuid}/init.sh"
+      echo "Downloading and executing database initialization script..."
       gcloud compute ssh ${var.init_vm_name} \
         --zone=${var.region}-a \
         --project=${var.project_id} \
-        --command="gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh" || true
+        --command="gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh"
+      echo "Database initialization completed successfully"
     EOT
   }
 

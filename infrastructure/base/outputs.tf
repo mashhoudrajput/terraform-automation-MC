@@ -222,7 +222,7 @@ output "quick_reference" {
       secret_name = "N/A (uses parent secret)"
       command     = "Retrieve from parent hospital secret"
     }
-  } : {
+    } : {
     database = {
       host            = google_sql_database_instance.mysql[0].private_ip_address
       port            = var.db_port

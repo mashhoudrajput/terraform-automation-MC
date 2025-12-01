@@ -127,7 +127,7 @@ variable "db_port" {
 variable "init_vm_name" {
   description = "Name of existing VM for database initialization"
   type        = string
-  default     = "database-init-vm"
+  default     = "db-init-cluster-001-dev"
 }
 
 # ============================================================================
