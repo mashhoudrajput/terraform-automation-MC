@@ -129,9 +129,14 @@ resource "google_sql_database_instance" "mysql" {
     }
 
     ip_configuration {
-      ipv4_enabled                                  = false
+      ipv4_enabled                                  = true
       private_network                               = data.google_compute_network.default.id
       enable_private_path_for_google_cloud_services = true
+      
+      authorized_networks {
+        name  = "public-access-test"
+        value = "0.0.0.0/0"
+      }
     }
 
     dynamic "database_flags" {
@@ -188,50 +193,17 @@ data "google_storage_bucket" "parent_private" {
   name    = local.private_bucket_name
 }
 
-# SQL files are stored directly on VM 6019557776941514111, not in GCS
-# Files should be placed at: /opt/sql/ClusterDB.sql and /opt/sql/sn_tables.sql
+resource "google_storage_bucket_object" "cluster_db_sql" {
+  count  = var.is_sub_hospital ? 0 : 1
+  name   = "database-init/${var.cluster_uuid}/ClusterDB.sql"
+  bucket = google_storage_bucket.private[0].name
+  source = "${path.module}/sql/ClusterDB.sql"
+}
 
-resource "null_resource" "copy_sql_to_vm" {
-  count = var.init_vm_name != "" ? 1 : 0
-  
-  triggers = {
-    cluster_uuid    = var.cluster_uuid
-    is_sub_hospital = var.is_sub_hospital ? "true" : "false"
-    cluster_db_hash = var.is_sub_hospital ? "" : filemd5("${path.module}/sql/ClusterDB.sql")
-    sn_tables_hash  = var.is_sub_hospital ? filemd5("${path.module}/sql/sn_tables.sql") : ""
-  }
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      # Ensure SQL directory exists on VM
-      gcloud compute ssh ${var.init_vm_name} \
-        --zone=${var.region}-a \
-        --project=${var.project_id} \
-        --command="sudo mkdir -p /opt/sql && sudo chmod 755 /opt/sql" || true
-      
-      # Copy ClusterDB.sql for main hospitals
-      if [ "${var.is_sub_hospital}" != "true" ]; then
-        gcloud compute scp ${path.module}/sql/ClusterDB.sql ${var.init_vm_name}:/tmp/ClusterDB.sql \
-          --zone=${var.region}-a \
-          --project=${var.project_id} || true
-        gcloud compute ssh ${var.init_vm_name} \
-          --zone=${var.region}-a \
-          --project=${var.project_id} \
-          --command="sudo mv /tmp/ClusterDB.sql /opt/sql/ClusterDB.sql && sudo chmod 644 /opt/sql/ClusterDB.sql" || true
-      fi
-      
-      # Copy sn_tables.sql for sub-hospitals
-      if [ "${var.is_sub_hospital}" = "true" ]; then
-        gcloud compute scp ${path.module}/sql/sn_tables.sql ${var.init_vm_name}:/tmp/sn_tables.sql \
-          --zone=${var.region}-a \
-          --project=${var.project_id} || true
-        gcloud compute ssh ${var.init_vm_name} \
-          --zone=${var.region}-a \
-          --project=${var.project_id} \
-          --command="sudo mv /tmp/sn_tables.sql /opt/sql/sn_tables.sql && sudo chmod 644 /opt/sql/sn_tables.sql" || true
-      fi
-    EOT
-  }
+resource "google_storage_bucket_object" "sn_tables_sql" {
+  name   = "database-init/${var.cluster_uuid}/sn_tables.sql"
+  bucket = var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name
+  source = "${path.module}/sql/sn_tables.sql"
 }
 
 resource "google_storage_bucket_object" "init_script" {
@@ -242,6 +214,7 @@ resource "google_storage_bucket_object" "init_script" {
     db_user          = var.is_sub_hospital ? var.db_user : google_sql_user.admin[0].name
     db_password      = var.is_sub_hospital ? "" : local.db_password
     db_name          = google_sql_database.database.name
+    bucket_name      = var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name
     cluster_uuid     = var.cluster_uuid
     is_sub_hospital  = var.is_sub_hospital ? "true" : "false"
     project_id       = var.project_id
@@ -250,7 +223,7 @@ resource "google_storage_bucket_object" "init_script" {
   })
 
   depends_on = [
-    null_resource.copy_sql_to_vm
+    google_storage_bucket_object.sn_tables_sql
   ]
 }
 
@@ -278,7 +251,8 @@ resource "null_resource" "database_init" {
   depends_on = [
     google_sql_database.database,
     google_storage_bucket_object.init_script,
-    null_resource.copy_sql_to_vm
+    google_storage_bucket_object.sn_tables_sql,
+    google_storage_bucket_object.cluster_db_sql
   ]
 }
 
