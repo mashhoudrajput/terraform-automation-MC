@@ -124,12 +124,6 @@ variable "db_port" {
   default     = "3306"
 }
 
-variable "init_vm_name" {
-  description = "Name of existing VM for database initialization"
-  type        = string
-  default     = "db-init-cluster-001-dev"
-}
-
 # ============================================================================
 # CLOUD SQL CONFIGURATION
 # ============================================================================

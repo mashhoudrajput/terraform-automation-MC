@@ -129,14 +129,9 @@ resource "google_sql_database_instance" "mysql" {
     }
 
     ip_configuration {
-      ipv4_enabled                                  = true
+      ipv4_enabled                                  = false
       private_network                               = data.google_compute_network.default.id
       enable_private_path_for_google_cloud_services = true
-      
-      authorized_networks {
-        name  = "public-access-test"
-        value = "0.0.0.0/0"
-      }
     }
 
     dynamic "database_flags" {
@@ -193,72 +188,6 @@ data "google_storage_bucket" "parent_private" {
   name    = local.private_bucket_name
 }
 
-resource "google_storage_bucket_object" "cluster_db_sql" {
-  count  = var.is_sub_hospital ? 0 : 1
-  name   = "database-init/${var.cluster_uuid}/ClusterDB.sql"
-  bucket = google_storage_bucket.private[0].name
-  source = "${path.module}/sql/ClusterDB.sql"
-}
-
-resource "google_storage_bucket_object" "sn_tables_sql" {
-  name   = "database-init/${var.cluster_uuid}/sn_tables.sql"
-  bucket = var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name
-  source = "${path.module}/sql/sn_tables.sql"
-}
-
-resource "google_storage_bucket_object" "init_script" {
-  name    = "database-init/${var.cluster_uuid}/init.sh"
-  bucket  = var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name
-  content = templatefile("${path.module}/scripts/init_database.sh", {
-    db_host          = var.is_sub_hospital ? data.google_sql_database_instance.parent[0].private_ip_address : google_sql_database_instance.mysql[0].private_ip_address
-    db_user          = var.is_sub_hospital ? var.db_user : google_sql_user.admin[0].name
-    db_password      = var.is_sub_hospital ? "" : local.db_password
-    db_name          = google_sql_database.database.name
-    bucket_name      = var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name
-    cluster_uuid     = var.cluster_uuid
-    is_sub_hospital  = var.is_sub_hospital ? "true" : "false"
-    project_id       = var.project_id
-    parent_instance_name = var.is_sub_hospital ? var.parent_instance_name : ""
-    parent_uuid      = var.is_sub_hospital ? replace(replace(var.parent_instance_name, "mc-cluster-", ""), "-", "_") : ""
-  })
-
-  depends_on = [
-    google_storage_bucket_object.sn_tables_sql
-  ]
-}
-
-resource "null_resource" "database_init" {
-  count = var.init_vm_name != "" ? 1 : 0
-  
-  triggers = {
-    database_id      = google_sql_database.database.id
-    init_script_id   = google_storage_bucket_object.init_script.id
-    cluster_uuid     = var.cluster_uuid
-    is_sub_hospital  = var.is_sub_hospital ? "true" : "false"
-  }
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      set -e
-      BUCKET_NAME="${var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name}"
-      INIT_SCRIPT="gs://$${BUCKET_NAME}/database-init/${var.cluster_uuid}/init.sh"
-      echo "Downloading and executing database initialization script..."
-      gcloud compute ssh ${var.init_vm_name} \
-        --zone=${var.region}-a \
-        --project=${var.project_id} \
-        --command="gsutil cp $${INIT_SCRIPT} /tmp/init-${var.cluster_uuid}.sh && chmod +x /tmp/init-${var.cluster_uuid}.sh && sudo /tmp/init-${var.cluster_uuid}.sh"
-      echo "Database initialization completed successfully"
-    EOT
-  }
-
-  depends_on = [
-    google_sql_database.database,
-    google_storage_bucket_object.init_script,
-    google_storage_bucket_object.sn_tables_sql,
-    google_storage_bucket_object.cluster_db_sql
-  ]
-}
-
 resource "google_secret_manager_secret" "db_uri" {
   count     = var.is_sub_hospital ? 0 : 1
   secret_id = local.secret_name
@@ -303,7 +232,6 @@ resource "google_secret_manager_secret_version" "db_uri" {
     ignore_changes = [secret_data]
   }
 }
-
 
 resource "google_storage_bucket" "private" {
   count          = var.is_sub_hospital ? 0 : 1

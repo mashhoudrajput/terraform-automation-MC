@@ -22,6 +22,7 @@ from src.models.models import (
 )
 from src.core.client_service import ClientService
 from src.core.terraform_service import TerraformService
+from src.core.database_service import DatabaseService
 from src.api.error_handler import enhance_terraform_error
 
 logging.basicConfig(
@@ -66,6 +67,7 @@ except Exception as e:
 
 terraform_service = TerraformService()
 client_service = ClientService()
+database_service = DatabaseService()
 
 
 @app.get("/", tags=["Root"])
@@ -157,6 +159,41 @@ async def register_client(
             client_service.update_client_outputs(db, client.uuid, outputs)
             client_service.update_client_status(db, client.uuid, ClientStatusEnum.COMPLETED)
             logger.info(f"Deployment completed successfully for client {client.uuid}")
+            
+            # Automatically create tables after successful deployment
+            try:
+                logger.info(f"Automatically creating tables for client {client.uuid}...")
+                is_sub_hospital = request.parent_uuid is not None
+                region = request.region or settings.gcp_region
+                
+                # Get private bucket name from outputs
+                terraform_outputs = client_service.parse_terraform_outputs(
+                    client_service.get_client_by_uuid(db, client.uuid).terraform_outputs
+                )
+                private_bucket_name = terraform_outputs.private_bucket_name if terraform_outputs else None
+                
+                if private_bucket_name:
+                    db_name = terraform_outputs.database_name if terraform_outputs else None
+                    parent_uuid = client.parent_uuid if is_sub_hospital else None
+                    
+                    table_success, table_message = database_service.create_tables(
+                        client.uuid, 
+                        is_sub_hospital, 
+                        region, 
+                        private_bucket_name,
+                        parent_uuid=parent_uuid,
+                        database_name=db_name
+                    )
+                    if table_success:
+                        logger.info(f"Tables created successfully for client {client.uuid}")
+                    else:
+                        logger.warning(f"Automatic table creation failed for client {client.uuid}: {table_message}")
+                        # Don't fail the registration, just log the warning
+                else:
+                    logger.warning(f"Could not create tables automatically: private_bucket_name not found in outputs")
+            except Exception as e:
+                logger.error(f"Error during automatic table creation: {str(e)}", exc_info=True)
+                # Don't fail the registration if table creation fails
         else:
             enhanced_error = enhance_terraform_error(error_message)
             client_service.update_client_status(
@@ -351,8 +388,7 @@ async def register_sub_hospital(
     This endpoint:
     1. Validates the parent hospital exists and is completed
     2. Creates a new database in the parent's Cloud SQL instance
-    3. Applies only sn_tables.sql (not ClusterDB.sql)
-    4. Uses parent's infrastructure (buckets, secrets)
+    3. Uses parent's infrastructure (buckets, secrets)
     
     The deployment runs synchronously and may take 3-5 minutes.
     """
@@ -376,39 +412,44 @@ async def register_sub_hospital(
         logger.info(f"Registered sub-hospital: {client.uuid} - {request.client_name} under parent {parent_uuid}")
         client_service.update_client_status(db, client.uuid, ClientStatusEnum.IN_PROGRESS)
         
-        parent_outputs = client_service.parse_terraform_outputs(parent_hospital.terraform_outputs)
-        if not parent_outputs or not parent_outputs.db_instance_name:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not retrieve parent database instance name for sub-hospital provisioning."
-            )
-        
-        client_info = {
-            "client_name": request.client_name,
-            "environment": request.environment,
-            "region": request.region,
-            "parent_uuid": parent_uuid
-        }
-        
-        logger.info(f"Starting Terraform deployment for sub-hospital {client.uuid} (parent: {parent_uuid})")
-        success, outputs, error_message = terraform_service.run_full_deployment(
-            client.uuid,
-            client_info
+        logger.info(f"Creating database for sub-hospital {client.uuid} in parent {parent_uuid}'s MySQL instance")
+        success, result = database_service.create_sub_hospital_database(
+            parent_uuid,
+            request.client_name,
+            client.uuid
         )
         
         if success:
-            client_service.update_client_outputs(db, client.uuid, outputs)
-            client_service.update_client_status(db, client.uuid, ClientStatusEnum.COMPLETED)
-            logger.info(f"Sub-hospital deployment completed successfully for client {client.uuid}")
+            parent_outputs = client_service.parse_terraform_outputs(parent_hospital.terraform_outputs)
+            if parent_outputs:
+                import re
+                db_name = re.sub(r'[^a-zA-Z0-9_-]', '_', request.client_name.lower())
+                db_name = re.sub(r'_+', '_', db_name).strip('_')
+                if not db_name:
+                    db_name = f"sub_{client.uuid[:8]}"
+                
+                outputs_dict = parent_outputs.dict()
+                outputs_dict['database_name'] = db_name
+                outputs_dict['connection_uri'] = result
+                
+                client_service.update_client_outputs(db, client.uuid, outputs_dict)
+                client_service.update_client_status(db, client.uuid, ClientStatusEnum.COMPLETED)
+                logger.info(f"Sub-hospital database created successfully for client {client.uuid}")
+            else:
+                client_service.update_client_status(
+                    db, 
+                    client.uuid, 
+                    ClientStatusEnum.FAILED,
+                    "Failed to retrieve parent hospital outputs"
+                )
         else:
-            enhanced_error = enhance_terraform_error(error_message)
             client_service.update_client_status(
                 db, 
                 client.uuid, 
                 ClientStatusEnum.FAILED,
-                enhanced_error
+                result
             )
-            logger.error(f"Sub-hospital deployment failed for client {client.uuid}: {error_message}")
+            logger.error(f"Sub-hospital database creation failed for client {client.uuid}: {result}")
         
         client = client_service.get_client_by_uuid(db, client.uuid)
         
@@ -492,6 +533,102 @@ async def delete_client(
         "client_uuid": client_uuid,
         "infrastructure_destroyed": not skip_infrastructure
     }
+
+
+@app.post(
+    "/api/hospitals/{hospital_uuid}/create-tables",
+    tags=["Hospitals"]
+)
+async def create_tables(
+    hospital_uuid: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Create database tables for a hospital using ClusterDB.sql.
+    
+    This endpoint:
+    1. Retrieves the database connection URI from Secret Manager
+    2. Executes ClusterDB.sql to create all tables
+    3. Returns success or error message
+    
+    The hospital must be in 'completed' status.
+    """
+    client = client_service.get_client_by_uuid(db, hospital_uuid)
+    
+    if not client:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Hospital not found: {hospital_uuid}"
+        )
+    
+    if client.status != ClientStatusEnum.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Hospital must be in 'completed' status. Current status: {client.status.value}"
+        )
+    
+    logger.info(f"Creating tables for hospital {hospital_uuid}")
+    
+    try:
+        is_sub_hospital = client.parent_uuid is not None
+        region = client.region or settings.gcp_region
+        
+        terraform_outputs = client_service.parse_terraform_outputs(client.terraform_outputs)
+        private_bucket_name = None
+        database_name = None
+        parent_uuid = None
+        
+        if is_sub_hospital and client.parent_uuid:
+            parent_uuid = client.parent_uuid
+            parent_hospital = client_service.get_client_by_uuid(db, client.parent_uuid)
+            if parent_hospital and parent_hospital.terraform_outputs:
+                parent_outputs = client_service.parse_terraform_outputs(parent_hospital.terraform_outputs)
+                if parent_outputs:
+                    private_bucket_name = parent_outputs.private_bucket_name
+            if terraform_outputs:
+                database_name = terraform_outputs.database_name
+        elif terraform_outputs:
+            private_bucket_name = terraform_outputs.private_bucket_name
+            database_name = terraform_outputs.database_name
+        
+        if not private_bucket_name:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Private bucket name not found. Available outputs: {list(terraform_outputs.dict().keys()) if terraform_outputs else 'None'}"
+            )
+        
+        success, message = database_service.create_tables(
+            hospital_uuid, 
+            is_sub_hospital, 
+            region, 
+            private_bucket_name,
+            parent_uuid=parent_uuid,
+            database_name=database_name
+        )
+        
+        if success:
+            logger.info(f"Tables created successfully for hospital {hospital_uuid}")
+            return {
+                "message": "Tables created successfully",
+                "hospital_uuid": hospital_uuid,
+                "details": message
+            }
+        else:
+            logger.error(f"Failed to create tables for hospital {hospital_uuid}: {message}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to create tables: {message}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = f"Error creating tables: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg
+        )
 
 
 if __name__ == "__main__":

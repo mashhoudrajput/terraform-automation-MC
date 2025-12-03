@@ -238,25 +238,5 @@ output "quick_reference" {
       secret_name = google_secret_manager_secret.db_uri[0].secret_id
       command     = "gcloud secrets versions access latest --secret=${google_secret_manager_secret.db_uri[0].secret_id}"
     }
-    database_init = {
-      step1 = "Upload SQL files to a VM in the default VPC"
-      step2 = "mysql -h ${google_sql_database_instance.mysql[0].private_ip_address} -u ${google_sql_user.admin[0].name} -p -D ${google_sql_database.database.name} < ClusterDB.sql"
-      step3 = "mysql -h ${google_sql_database_instance.mysql[0].private_ip_address} -u ${google_sql_user.admin[0].name} -p -D ${google_sql_database.database.name} < sn_tables.sql"
-    }
   }
-}
-
-# ============================================================================
-# DATABASE INITIALIZATION SCRIPT
-# ============================================================================
-
-output "database_init_script_location" {
-  description = "Location of database initialization script in GCS"
-  value       = var.is_sub_hospital ? "gs://${data.google_storage_bucket.parent_private[0].name}/database-init/${var.cluster_uuid}/init.sh" : "gs://${google_storage_bucket.private[0].name}/database-init/${var.cluster_uuid}/init.sh"
-}
-
-output "database_init_command" {
-  description = "Command to run on existing VM for database initialization"
-  value       = var.is_sub_hospital ? "gcloud compute ssh ${var.init_vm_name} --zone=${var.region}-a --command='gsutil cp gs://${data.google_storage_bucket.parent_private[0].name}/database-init/${var.cluster_uuid}/init.sh /tmp/ && chmod +x /tmp/init.sh && sudo /tmp/init.sh'" : "gcloud compute ssh ${var.init_vm_name} --zone=${var.region}-a --command='gsutil cp gs://${google_storage_bucket.private[0].name}/database-init/${var.cluster_uuid}/init.sh /tmp/ && chmod +x /tmp/init.sh && sudo /tmp/init.sh'"
-  sensitive   = false
 }

@@ -242,6 +242,27 @@
             background: #218838;
         }
 
+        .create-tables-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .create-tables-btn:hover:not(:disabled) {
+            background: #0056b3;
+        }
+
+        .create-tables-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
         .error-message {
             color: #dc3545;
             margin-top: 10px;
@@ -444,7 +465,12 @@
                     • Database: ${data.terraform_outputs?.database_name || 'N/A'}<br>
                     • Port: ${data.terraform_outputs?.db_port || '3306'}<br>
                     <br>
-                    <button class="add-sub-btn" onclick="showSubHospitalForm('${data.client_uuid}')">Add Sub Hospital</button>
+                    <button class="create-tables-btn" onclick="createTables('${data.client_uuid}')" id="createTablesBtn">
+                        Create Tables
+                    </button>
+                    <button class="add-sub-btn" onclick="showSubHospitalForm('${data.client_uuid}')" style="margin-left: 10px;">
+                        Add Sub Hospital
+                    </button>
                 `;
             } else if (status === 'failed') {
                 container.classList.remove('status-in-progress');
@@ -541,7 +567,13 @@
                                 <span class="hospital-status status-badge-${hospital.status.replace('_', '-')}">
                                     ${getStatusText(hospital.status)}
                                 </span>
+                                ${hospital.status === 'completed' ? `
+                                    <button class="create-tables-btn" onclick="createTables('${hospital.client_uuid}')" id="createTablesBtn-${hospital.client_uuid}">
+                                        Create Tables
+                                    </button>
+                                ` : ''}
                                 ${isMainHospital && hospital.status === 'completed' ? `<button class="add-sub-btn" onclick="showSubHospitalForm('${hospital.client_uuid}')">Add Sub Hospital</button>` : ''}
+                                ${!isMainHospital && hospital.status === 'completed' ? `<span style="color: #666; font-size: 0.85em;">Parent: ${hospital.parent_uuid}</span>` : ''}
                                 <button class="delete-btn" onclick="deleteHospital('${hospital.client_uuid}', '${hospital.client_name}')" 
                                         ${hospital.status === 'in_progress' ? 'disabled' : ''}>
                                     Delete
@@ -570,19 +602,61 @@
         }
 
         function showSubHospitalForm(parentUuid) {
-            const subUuid = prompt('Enter UUID for the sub-hospital:');
-            if (!subUuid) return;
+            // Create modal form
+            const formHtml = `
+                <div id="subHospitalModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+                    <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                        <h2 style="margin-bottom: 20px; color: #333;">Add Sub-Hospital</h2>
+                        <form id="subHospitalForm">
+                            <div class="form-group">
+                                <label for="subHospitalName">Sub-Hospital Name *</label>
+                                <input type="text" id="subHospitalName" name="subHospitalName" 
+                                       placeholder="Enter sub-hospital name" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em;">
+                            </div>
+                            <div class="form-group">
+                                <label for="subHospitalUuid">Sub-Hospital UUID *</label>
+                                <input type="text" id="subHospitalUuid" name="subHospitalUuid" 
+                                       placeholder="Enter UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)" required
+                                       pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                                       style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em;">
+                            </div>
+                            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                <button type="submit" class="btn" style="flex: 1; background: #28a745;">Create Database</button>
+                                <button type="button" onclick="closeSubHospitalModal()" class="btn" style="flex: 1; background: #6c757d;">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
             
-            const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidPattern.test(subUuid)) {
-                showError('Please enter a valid UUID format');
-                return;
+            document.body.insertAdjacentHTML('beforeend', formHtml);
+            
+            document.getElementById('subHospitalForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const subName = document.getElementById('subHospitalName').value.trim();
+                const subUuid = document.getElementById('subHospitalUuid').value.trim();
+                
+                if (!subName || !subUuid) {
+                    showError('Please fill in all fields');
+                    return;
+                }
+                
+                const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                if (!uuidPattern.test(subUuid)) {
+                    showError('Please enter a valid UUID format');
+                    return;
+                }
+                
+                closeSubHospitalModal();
+                registerSubHospital(parentUuid, subUuid, subName);
+            });
+        }
+        
+        function closeSubHospitalModal() {
+            const modal = document.getElementById('subHospitalModal');
+            if (modal) {
+                modal.remove();
             }
-            
-            const subName = prompt('Enter name for the sub-hospital:');
-            if (!subName) return;
-            
-            registerSubHospital(parentUuid, subUuid, subName);
         }
 
         async function registerSubHospital(parentUuid, subUuid, subName) {
@@ -622,6 +696,46 @@
         setInterval(() => {
             loadHospitals();
         }, 5000);
+
+        async function createTables(hospitalUuid) {
+            const btn = document.getElementById(`createTablesBtn-${hospitalUuid}`) || document.getElementById('createTablesBtn');
+            if (!btn) return;
+            
+            if (!confirm('This will create all database tables using ClusterDB.sql. Continue?')) {
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+            hideError();
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/hospitals/${hospitalUuid}/create-tables`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to create tables');
+                }
+                
+                const result = await response.json();
+                showError(`Tables created successfully! ${result.details || ''}`);
+                
+                setTimeout(() => {
+                    hideError();
+                }, 5000);
+                
+            } catch (error) {
+                showError(`Failed to create tables: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create Tables';
+            }
+        }
 
         async function deleteHospital(uuid, name) {
             if (!confirm(`Are you sure you want to delete "${name}"?\n\nThis will destroy all infrastructure including:\n- Cloud SQL database\n- Storage buckets\n- Secret Manager secrets\n\nThis action cannot be undone.`)) {

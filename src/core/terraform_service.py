@@ -36,8 +36,16 @@ class TerraformService:
         """
         workspace_path = self.deployments_path / client_uuid
         
+        # If workspace exists, clean it up to allow retry
         if workspace_path.exists():
-            raise ValueError(f"Workspace already exists for client {client_uuid}")
+            logger.warning(f"Workspace already exists for client {client_uuid}, cleaning up for retry...")
+            import shutil
+            try:
+                shutil.rmtree(workspace_path)
+                logger.info(f"Cleaned up existing workspace for client {client_uuid}")
+            except Exception as e:
+                logger.error(f"Failed to clean up workspace: {e}")
+                raise ValueError(f"Workspace already exists for client {client_uuid} and could not be cleaned up: {e}")
         
         workspace_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"Created workspace directory: {workspace_path}")
@@ -46,9 +54,6 @@ class TerraformService:
             if item.is_file() and not item.name.endswith('.template'):
                 shutil.copy2(item, workspace_path)
                 logger.debug(f"Copied {item.name} to workspace")
-            elif item.is_dir() and item.name in ["sql", "scripts"]:
-                shutil.copytree(item, workspace_path / item.name)
-                logger.debug(f"Copied {item.name} directory to workspace")
         
         credentials_src = Path("/app") / settings.gcp_credentials_file
         if not credentials_src.exists():
@@ -130,7 +135,7 @@ hospital_name = "{hospital_name}"
         Returns:
             Tuple of (success, output)
         """
-        logger.info(f"Running terraform init in {workspace_path}")
+        logger.info(f"Running terraform init in {workspace_path} (timeout: {settings.terraform_init_timeout}s)")
         
         credentials_file = workspace_path / settings.gcp_credentials_file
         if not credentials_file.exists():
@@ -148,8 +153,14 @@ hospital_name = "{hospital_name}"
         env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
         
         try:
+            terraform_dir = workspace_path / ".terraform"
+            if terraform_dir.exists():
+                logger.info("Terraform already initialized, running init to ensure providers are up to date...")
+            else:
+                logger.info("Starting terraform init process (first time initialization)...")
+            
             result = subprocess.run(
-                [self.terraform_binary, "init", "-no-color"],
+                [self.terraform_binary, "init", "-no-color", "-upgrade"],
                 cwd=workspace_path,
                 capture_output=True,
                 text=True,
@@ -164,16 +175,22 @@ hospital_name = "{hospital_name}"
                 logger.info("Terraform init completed successfully")
                 return True, result.stdout
             else:
-                logger.error(f"Terraform init failed: {result.stderr}")
-                return False, result.stderr
+                error_output = result.stderr or result.stdout
+                logger.error(f"Terraform init failed with return code {result.returncode}")
+                logger.error(f"Error output: {error_output[:500]}")  # Log first 500 chars
+                return False, error_output
                 
-        except subprocess.TimeoutExpired:
-            error_msg = f"Terraform init timed out after {settings.terraform_init_timeout} seconds"
+        except subprocess.TimeoutExpired as e:
+            error_msg = f"Terraform init timed out after {settings.terraform_init_timeout} seconds. This may be due to slow network or large provider downloads."
             logger.error(error_msg)
+            # Try to capture partial output if available
+            if hasattr(e, 'stdout') and e.stdout:
+                log_path = workspace_path / "init.log"
+                log_path.write_text(f"TIMEOUT after {settings.terraform_init_timeout}s\n\n{e.stdout}")
             return False, error_msg
         except Exception as e:
             error_msg = f"Error running terraform init: {str(e)}"
-            logger.error(error_msg)
+            logger.error(error_msg, exc_info=True)
             return False, error_msg
     
     def run_terraform_apply(self, workspace_path: Path) -> Tuple[bool, str]:

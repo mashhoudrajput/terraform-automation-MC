@@ -7,12 +7,8 @@ DEPLOYMENTS_DIR="./data/deployments"
 CONTAINER_NAME="terraform-backend-api"
 STATE_BUCKET="medical-circles-terraform-state-files"
 
-echo "====================================="
 echo "Terraform Resources Cleanup"
-echo "====================================="
-echo ""
-echo "Note: State files are stored in GCS:"
-echo "  gs://$STATE_BUCKET/clients/{uuid}/"
+echo "State files are stored in GCS: gs://$STATE_BUCKET/clients/{uuid}/"
 echo ""
 
 if [ ! -d "$DEPLOYMENTS_DIR" ]; then
@@ -61,18 +57,8 @@ for client_dir in "$DEPLOYMENTS_DIR"/*; do
     fi
 done
 
-echo "====================================="
 echo "Cleanup complete"
-echo "====================================="
 echo ""
-echo "GCS State Files:"
-echo "  Location: gs://$STATE_BUCKET/clients/"
-echo ""
-echo "To clean up GCS state files (optional):"
-echo "  gsutil ls gs://$STATE_BUCKET/clients/"
-echo "  gsutil -m rm -r gs://$STATE_BUCKET/clients/{client-uuid}/"
-echo ""
-echo "To clean up ALL GCS state files:"
-echo "  gsutil -m rm -r gs://$STATE_BUCKET/clients/**"
-echo ""
+echo "GCS State Files: gs://$STATE_BUCKET/clients/"
+echo "To clean up GCS state files: gsutil -m rm -r gs://$STATE_BUCKET/clients/{client-uuid}/"
 
