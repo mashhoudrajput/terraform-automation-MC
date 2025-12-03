@@ -413,10 +413,28 @@ async def register_sub_hospital(
         client_service.update_client_status(db, client.uuid, ClientStatusEnum.IN_PROGRESS)
         
         logger.info(f"Creating database for sub-hospital {client.uuid} in parent {parent_uuid}'s MySQL instance")
+        
+        # Get parent's private bucket name from outputs
+        parent_outputs = client_service.parse_terraform_outputs(parent_hospital.terraform_outputs)
+        if not parent_outputs or not parent_outputs.private_bucket_name:
+            client_service.update_client_status(
+                db, 
+                client.uuid, 
+                ClientStatusEnum.FAILED,
+                "Failed to retrieve parent hospital's private bucket name"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Parent hospital's private bucket name not found in outputs"
+            )
+        
+        region = request.region or settings.gcp_region
         success, result = database_service.create_sub_hospital_database(
             parent_uuid,
             request.client_name,
-            client.uuid
+            client.uuid,
+            private_bucket_name=parent_outputs.private_bucket_name,
+            region=region
         )
         
         if success:

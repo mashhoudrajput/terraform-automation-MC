@@ -39,7 +39,6 @@ class TerraformService:
         # If workspace exists, clean it up to allow retry
         if workspace_path.exists():
             logger.warning(f"Workspace already exists for client {client_uuid}, cleaning up for retry...")
-            import shutil
             try:
                 shutil.rmtree(workspace_path)
                 logger.info(f"Cleaned up existing workspace for client {client_uuid}")
