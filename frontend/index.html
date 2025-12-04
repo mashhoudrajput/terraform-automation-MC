@@ -723,11 +723,23 @@
                 }
                 
                 const result = await response.json();
-                showError(`Tables created successfully! ${result.details || ''}`);
                 
-                setTimeout(() => {
-                    hideError();
-                }, 5000);
+                // Show success message
+                const errorDiv = document.getElementById('errorMessage');
+                if (errorDiv) {
+                    errorDiv.style.background = '#d4edda';
+                    errorDiv.style.color = '#155724';
+                    errorDiv.style.border = '1px solid #c3e6cb';
+                    errorDiv.textContent = `✓ Tables created successfully! ${result.message || ''}`;
+                    errorDiv.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        errorDiv.style.display = 'none';
+                        errorDiv.style.background = '';
+                        errorDiv.style.color = '';
+                        errorDiv.style.border = '';
+                    }, 5000);
+                }
                 
             } catch (error) {
                 showError(`Failed to create tables: ${error.message}`);
