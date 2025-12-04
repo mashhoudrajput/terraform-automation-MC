@@ -74,30 +74,16 @@ class DatabaseService:
         Returns:
             MySQL connection object
         """
-        # Parse mysql://user:pass@host:port/database
-        uri = connection_uri.replace('mysql://', '')
+        # Parse mysql://user:pass@host:port/database using urllib.parse
+        # This properly handles passwords with special characters like @
+        from urllib.parse import urlparse, unquote
         
-        # Extract credentials and connection info
-        if '@' in uri:
-            auth_part, conn_part = uri.split('@', 1)
-            user, password = auth_part.split(':', 1) if ':' in auth_part else (auth_part, '')
-        else:
-            user, password = '', ''
-            conn_part = uri
-        
-        # Extract host, port, and database
-        if '/' in conn_part:
-            host_port, database = conn_part.split('/', 1)
-        else:
-            host_port = conn_part
-            database = ''
-        
-        if ':' in host_port:
-            host, port = host_port.split(':', 1)
-            port = int(port)
-        else:
-            host = host_port
-            port = 3306
+        parsed = urlparse(connection_uri)
+        user = unquote(parsed.username) if parsed.username else ''
+        password = unquote(parsed.password) if parsed.password else ''
+        host = parsed.hostname if parsed.hostname else ''
+        port = parsed.port if parsed.port else 3306
+        database = unquote(parsed.path.lstrip('/')) if parsed.path else ''
         
         # Remove query parameters if any
         database = database.split('?')[0]
@@ -144,25 +130,14 @@ class DatabaseService:
             parent_connection_uri = self.get_connection_uri_from_secret(parent_secret_name)
             
             # Parse parent connection URI to get connection details
-            uri = parent_connection_uri.replace('mysql://', '')
-            if '@' in uri:
-                auth_part, conn_part = uri.split('@', 1)
-                user, password = auth_part.split(':', 1) if ':' in auth_part else (auth_part, '')
-            else:
-                user, password = '', ''
-                conn_part = uri
+            # Use urllib.parse to handle passwords with special characters like @
+            from urllib.parse import urlparse, unquote
             
-            if '/' in conn_part:
-                host_port, _ = conn_part.split('/', 1)
-            else:
-                host_port = conn_part
-            
-            if ':' in host_port:
-                host, port = host_port.split(':', 1)
-                port = int(port)
-            else:
-                host = host_port
-                port = 3306
+            parsed = urlparse(parent_connection_uri)
+            user = unquote(parsed.username) if parsed.username else ''
+            password = unquote(parsed.password) if parsed.password else ''
+            host = parsed.hostname if parsed.hostname else ''
+            port = parsed.port if parsed.port else 3306
             
             # Generate database name
             db_name = re.sub(r'[^a-zA-Z0-9_-]', '_', sub_hospital_name.lower())
@@ -410,26 +385,17 @@ class DatabaseService:
             connection_uri = self.get_connection_uri_from_secret(secret_name)
             
             # Parse connection URI to get connection details
-            uri = connection_uri.replace('mysql://', '')
-            if '@' in uri:
-                auth_part, conn_part = uri.split('@', 1)
-                user, password = auth_part.split(':', 1) if ':' in auth_part else (auth_part, '')
-            else:
-                user, password = '', ''
-                conn_part = uri
+            # Use urllib.parse to handle passwords with special characters like @
+            from urllib.parse import urlparse, unquote
             
-            if '/' in conn_part:
-                host_port, database = conn_part.split('/', 1)
-            else:
-                host_port = conn_part
-                database = ''
+            parsed = urlparse(connection_uri)
+            user = unquote(parsed.username) if parsed.username else ''
+            password = unquote(parsed.password) if parsed.password else ''
+            host = parsed.hostname if parsed.hostname else ''
+            port = parsed.port if parsed.port else 3306
+            database = unquote(parsed.path.lstrip('/')) if parsed.path else ''
             
-            if ':' in host_port:
-                host, port = host_port.split(':', 1)
-            else:
-                host = host_port
-                port = 3306
-            
+            # Remove query parameters if any
             database = database.split('?')[0]
             
             if is_sub_hospital and database_name:
