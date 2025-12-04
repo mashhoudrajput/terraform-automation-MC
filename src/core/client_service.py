@@ -35,7 +35,8 @@ class ClientService:
         if ClientService.get_client_by_uuid(db, request.client_uuid):
             raise ValueError(f"Client with UUID {request.client_uuid} already exists")
         
-        job_id = f"job-{request.client_uuid[:8]}"
+        # Use full UUID to ensure uniqueness (first 8 chars can collide)
+        job_id = f"job-{request.client_uuid}"
         
         client = Client(
             uuid=request.client_uuid,
