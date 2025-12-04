@@ -4,9 +4,10 @@ from src.core.database import get_db, ClientStatusEnum
 from src.core.client_service import ClientService
 from src.core.terraform_service import TerraformService
 from src.models.models import ClientListResponse, ClientStatusResponse
+from src.api.middleware.auth import verify_api_key
 from src.config.settings import settings
 
-router = APIRouter(tags=["Common"])
+router = APIRouter(tags=["Common"], dependencies=[Depends(verify_api_key)])
 client_service = ClientService()
 terraform_service = TerraformService()
 

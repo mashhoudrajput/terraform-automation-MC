@@ -44,12 +44,20 @@
         .success-message { color: #155724; margin-top: 10px; padding: 10px; background: #d4edda; border-radius: 6px; font-size: 0.9em; display: none; }
         .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; }
         .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; }
+        .api-key-section { margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+        .hospital-status-item { margin-top: 10px; padding: 10px; border-radius: 6px; font-size: 0.9em; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Hospital Management System</h1>
         <p class="subtitle">Register hospitals and manage databases</p>
+
+        <div class="api-key-section">
+            <label for="apiKey">API Key *</label>
+            <input type="text" id="apiKey" placeholder="Enter API key" value="default-api-key-change-me" style="margin-bottom: 10px;">
+            <small style="color: #666;">Set this in environment variable API_KEY or use default</small>
+        </div>
 
         <form id="hospitalForm">
             <div class="form-group">
@@ -66,6 +74,7 @@
         <div id="statusContainer" class="status-container"></div>
         <div id="errorMessage" class="error-message"></div>
         <div id="successMessage" class="success-message"></div>
+        <div id="statusItems"></div>
 
         <div class="hospitals-list">
             <h2>Registered Hospitals</h2>
@@ -75,7 +84,18 @@
 
     <script>
         const API_BASE = 'http://localhost:8000';
-        let statusCheckInterval = null;
+        const statusPolls = new Map();
+
+        function getApiKey() {
+            return document.getElementById('apiKey').value.trim() || 'default-api-key-change-me';
+        }
+
+        function getHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'X-API-Key': getApiKey()
+            };
+        }
 
         document.addEventListener('DOMContentLoaded', () => loadHospitals());
 
@@ -88,7 +108,7 @@
                 showError('Please fill in all fields');
                 return;
             }
-
+            
             if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)) {
                 showError('Please enter a valid UUID format');
                 return;
@@ -102,7 +122,7 @@
             try {
                 const response = await fetch(`${API_BASE}/api/hospitals/register`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getHeaders(),
                     body: JSON.stringify({
                         client_name: name,
                         client_uuid: uuid,
@@ -117,9 +137,13 @@
                 }
 
                 const data = await response.json();
-                showStatus('in_progress', data);
+                updateHospitalStatus(data.client_uuid, 'in_progress', {client_name: name, client_uuid: data.client_uuid});
                 startStatusPolling(data.client_uuid);
                 document.getElementById('hospitalForm').reset();
+                showSuccess(`Hospital "${name}" is being created. Status will update automatically.`);
+                loadHospitals();
+                btn.disabled = false;
+                btn.textContent = 'Register Hospital';
             } catch (error) {
                 showError(error.message);
                 btn.disabled = false;
@@ -127,61 +151,85 @@
             }
         });
 
-        function showStatus(status, data) {
-            const container = document.getElementById('statusContainer');
-            container.className = 'status-container show';
+        function updateHospitalStatus(hospitalUuid, status, data) {
+            const statusItems = document.getElementById('statusItems');
+            let statusItem = document.getElementById(`status-${hospitalUuid}`);
+            
+            if (!statusItem) {
+                statusItem = document.createElement('div');
+                statusItem.id = `status-${hospitalUuid}`;
+                statusItem.className = 'hospital-status-item';
+                statusItems.appendChild(statusItem);
+            }
             
             if (status === 'in_progress') {
-                container.classList.add('status-in-progress');
-                container.innerHTML = `
-                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                statusItem.className = 'hospital-status-item status-in-progress';
+                statusItem.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
                         <span class="spinner"></span>
-                        <span style="font-weight: 600;">Database Creation In Process...</span>
+                        <strong>${data.client_name || 'N/A'}</strong> - Creating database... (UUID: ${hospitalUuid})
                     </div>
-                    <div>Hospital: ${data.client_name || 'N/A'}<br>UUID: ${data.client_uuid}<br><em>This may take 5-10 minutes...</em></div>
                 `;
             } else if (status === 'completed') {
-                container.classList.remove('status-in-progress');
-                container.classList.add('status-completed');
-                container.innerHTML = `
-                    <div style="font-weight: 600; margin-bottom: 15px;">✓ Database Created Successfully!</div>
-                    <div>Hospital: ${data.client_name || 'N/A'}<br>Status: Database and tables created</div>
+                statusItem.className = 'hospital-status-item status-completed';
+                statusItem.innerHTML = `
+                    <div><strong>${data.client_name || 'N/A'}</strong> - ✓ Database created successfully</div>
                 `;
+                setTimeout(() => statusItem.remove(), 5000);
             } else if (status === 'failed') {
-                container.classList.remove('status-in-progress');
-                container.classList.add('status-failed');
-                container.innerHTML = `
-                    <div style="font-weight: 600; margin-bottom: 15px;">✗ Database Creation Failed</div>
-                    <div>Hospital: ${data.client_name || 'N/A'}<br>Error: ${data.error_message || 'Unknown error'}</div>
+                statusItem.className = 'hospital-status-item status-failed';
+                statusItem.innerHTML = `
+                    <div><strong>${data.client_name || 'N/A'}</strong> - ✗ Failed: ${data.error_message || 'Unknown error'}</div>
                 `;
+                setTimeout(() => statusItem.remove(), 10000);
             }
         }
 
         function startStatusPolling(hospitalUuid) {
-            if (statusCheckInterval) clearInterval(statusCheckInterval);
-            statusCheckInterval = setInterval(async () => {
+            if (statusPolls.has(hospitalUuid)) {
+                clearInterval(statusPolls.get(hospitalUuid));
+            }
+
+            const interval = setInterval(async () => {
                 try {
-                    const response = await fetch(`${API_BASE}/api/hospitals/${hospitalUuid}/status`);
-                    if (!response.ok) throw new Error('Failed to fetch status');
+                    const response = await fetch(`${API_BASE}/api/hospitals/${hospitalUuid}/status`, {
+                        headers: getHeaders()
+                    });
+                    if (!response.ok) {
+                        if (response.status === 401 || response.status === 403) {
+                            throw new Error('Authentication failed. Check your API key.');
+                        }
+                        throw new Error('Failed to fetch status');
+                    }
                     const data = await response.json();
-                    showStatus(data.status, data);
+                    updateHospitalStatus(hospitalUuid, data.status, data);
+                    
                     if (data.status === 'completed' || data.status === 'failed') {
-                        clearInterval(statusCheckInterval);
-                        statusCheckInterval = null;
-                        document.getElementById('submitBtn').disabled = false;
-                        document.getElementById('submitBtn').textContent = 'Register Hospital';
+                        clearInterval(interval);
+                        statusPolls.delete(hospitalUuid);
                         loadHospitals();
                     }
                 } catch (error) {
-                    console.error('Status polling error:', error);
+                    console.error(`Status polling error for ${hospitalUuid}:`, error);
+                    clearInterval(interval);
+                    statusPolls.delete(hospitalUuid);
                 }
             }, 3000);
+
+            statusPolls.set(hospitalUuid, interval);
         }
 
         async function loadHospitals() {
             try {
-                const response = await fetch(`${API_BASE}/api/hospitals`);
-                if (!response.ok) throw new Error('Failed to load hospitals');
+                const response = await fetch(`${API_BASE}/api/hospitals`, {
+                    headers: getHeaders()
+                });
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        throw new Error('Authentication failed. Check your API key.');
+                    }
+                    throw new Error('Failed to load hospitals');
+                }
                 const data = await response.json();
                 const listDiv = document.getElementById('hospitalsList');
 
@@ -190,25 +238,31 @@
                         const date = new Date(h.created_at).toLocaleString();
                         const isMain = !h.parent_uuid;
                         return `
-                            <div class="hospital-item">
-                                <div class="hospital-info">
+                        <div class="hospital-item">
+                            <div class="hospital-info">
                                     <div class="hospital-name">${h.client_name} ${isMain ? '' : '<span style="color: #666; font-size: 0.9em;">(Sub-Hospital)</span>'}</div>
                                     <div class="hospital-date">${date} | UUID: ${h.client_uuid}</div>
-                                </div>
-                                <div class="hospital-actions">
+                            </div>
+                            <div class="hospital-actions">
                                     <span class="status-badge status-badge-${h.status.replace('_', '-')}">${getStatusText(h.status)}</span>
                                     ${h.status === 'completed' ? `<button class="btn btn-sm btn-primary" onclick="createTables('${h.client_uuid}')">Create Tables</button>` : ''}
                                     ${isMain && h.status === 'completed' ? `<button class="btn btn-sm btn-success" onclick="showSubHospitalForm('${h.client_uuid}')">Add Sub Hospital</button>` : ''}
                                     <button class="btn btn-sm btn-danger" onclick="deleteHospital('${h.client_uuid}', '${h.client_name}')" ${h.status === 'in_progress' ? 'disabled' : ''}>Delete</button>
-                                </div>
                             </div>
-                        `;
+                        </div>
+                    `;
                     }).join('');
+
+                    data.clients.forEach(h => {
+                        if (h.status === 'in_progress' && !statusPolls.has(h.client_uuid)) {
+                            startStatusPolling(h.client_uuid);
+                        }
+                    });
                 } else {
                     listDiv.innerHTML = '<p style="color: #666;">No hospitals registered yet.</p>';
                 }
             } catch (error) {
-                document.getElementById('hospitalsList').innerHTML = '<p style="color: #dc3545;">Error loading hospitals.</p>';
+                document.getElementById('hospitalsList').innerHTML = `<p style="color: #dc3545;">Error: ${error.message}</p>`;
             }
         }
 
@@ -224,20 +278,20 @@
             modal.innerHTML = `
                 <div class="modal-content">
                     <h2 style="margin-bottom: 20px;">Add Sub-Hospital</h2>
-                    <form id="subHospitalForm">
-                        <div class="form-group">
-                            <label for="subHospitalName">Sub-Hospital Name *</label>
+                        <form id="subHospitalForm">
+                            <div class="form-group">
+                                <label for="subHospitalName">Sub-Hospital Name *</label>
                             <input type="text" id="subHospitalName" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
-                        </div>
-                        <div class="form-group">
-                            <label for="subHospitalUuid">Sub-Hospital UUID *</label>
+                            </div>
+                            <div class="form-group">
+                                <label for="subHospitalUuid">Sub-Hospital UUID *</label>
                             <input type="text" id="subHospitalUuid" required pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
-                        </div>
-                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            </div>
+                            <div style="display: flex; gap: 10px; margin-top: 20px;">
                             <button type="submit" class="btn btn-success" style="flex: 1;">Create</button>
                             <button type="button" onclick="closeModal()" class="btn" style="flex: 1; background: #6c757d;">Cancel</button>
-                        </div>
-                    </form>
+                            </div>
+                        </form>
                 </div>
             `;
             document.body.appendChild(modal);
@@ -256,7 +310,7 @@
                 await registerSubHospital(parentUuid, uuid, name);
             });
         }
-
+        
         function closeModal() {
             const modal = document.getElementById('subHospitalModal');
             if (modal) modal.remove();
@@ -265,11 +319,11 @@
         async function registerSubHospital(parentUuid, subUuid, subName) {
             try {
                 hideMessages();
-                showStatus('in_progress', {client_name: subName, client_uuid: subUuid, job_id: 'pending'});
+                updateHospitalStatus(subUuid, 'in_progress', {client_name: subName, client_uuid: subUuid});
                 
                 const response = await fetch(`${API_BASE}/api/hospitals/${parentUuid}/sub-hospitals/register`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getHeaders(),
                     body: JSON.stringify({
                         client_name: subName,
                         client_uuid: subUuid,
@@ -284,11 +338,11 @@
                 }
 
                 const data = await response.json();
-                showStatus('in_progress', data);
+                updateHospitalStatus(data.client_uuid, 'in_progress', {client_name: subName, client_uuid: data.client_uuid});
                 startStatusPolling(data.client_uuid);
+                showSuccess(`Sub-hospital "${subName}" is being created. Status will update automatically.`);
                 loadHospitals();
             } catch (error) {
-                hideStatus();
                 showError(`Failed to register sub-hospital: ${error.message}`);
             }
         }
@@ -304,7 +358,7 @@
             try {
                 const response = await fetch(`${API_BASE}/api/hospitals/${hospitalUuid}/create-tables`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: getHeaders()
                 });
                 
                 if (!response.ok) {
@@ -314,6 +368,7 @@
                 
                 const result = await response.json();
                 showSuccess(`Tables created successfully! ${result.message || ''}`);
+                loadHospitals();
             } catch (error) {
                 showError(`Failed to create tables: ${error.message}`);
             } finally {
@@ -331,7 +386,8 @@
 
             try {
                 const response = await fetch(`${API_BASE}/api/clients/${uuid}?skip_infrastructure=false`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: getHeaders()
                 });
 
                 if (!response.ok) {
@@ -367,11 +423,8 @@
         function hideMessages() {
             document.getElementById('errorMessage').style.display = 'none';
             document.getElementById('successMessage').style.display = 'none';
-        }
+            }
 
-        function hideStatus() {
-            document.getElementById('statusContainer').classList.remove('show');
-        }
 
         setInterval(() => loadHospitals(), 5000);
     </script>

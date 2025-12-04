@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings
+from pydantic import Field
 
 
 class Settings(BaseSettings):
@@ -13,6 +14,7 @@ class Settings(BaseSettings):
     api_title: str = "Multi-Client Terraform Provisioning API"
     api_version: str = "1.0.0"
     api_description: str = "API for provisioning isolated GCP infrastructure per client"
+    api_key: Optional[str] = Field(default=None, description="API key for authentication (set via API_KEY env var)")
     
     base_dir: Path = Path(__file__).parent.parent.parent.resolve()
     terraform_template_path: Path = Path("/app/infrastructure/base")

@@ -2,14 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.core.database import get_db, ClientStatusEnum
 from src.core.client_service import ClientService
-from src.core.services.db_sub import SubHospitalDBService
+from src.core.background_tasks import task_manager
 from src.models.models import ClientRegistrationRequest, ClientRegistrationResponse
-from src.config.settings import settings
-import re
+from src.api.middleware.auth import verify_api_key
 
-router = APIRouter(prefix="/api/hospitals", tags=["Hospitals"])
+router = APIRouter(prefix="/api/hospitals", tags=["Hospitals"], dependencies=[Depends(verify_api_key)])
 client_service = ClientService()
-db_service = SubHospitalDBService()
 
 
 @router.post("/{parent_uuid}/sub-hospitals/register", response_model=ClientRegistrationResponse, status_code=status.HTTP_201_CREATED)
@@ -30,53 +28,19 @@ async def register_sub_hospital(parent_uuid: str, request: ClientRegistrationReq
         client = client_service.create_client(db, request)
         client_service.update_client_status(db, client.uuid, ClientStatusEnum.IN_PROGRESS)
         
-        parent_outputs = client_service.parse_terraform_outputs(parent_hospital.terraform_outputs)
-        if not parent_outputs or not parent_outputs.private_bucket_name:
-            client_service.update_client_status(
-                db, client.uuid, ClientStatusEnum.FAILED,
-                "Failed to retrieve parent hospital's private bucket name"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Parent hospital's private bucket name not found in outputs"
-            )
+        client_info = {
+            "client_name": request.client_name,
+            "environment": request.environment,
+            "region": request.region,
+            "parent_uuid": parent_uuid
+        }
         
-        region = request.region or settings.gcp_region
-        success, result = db_service.create_database(
-            parent_uuid, request.client_name, client.uuid,
-            parent_outputs.private_bucket_name, region
-        )
+        task_manager.deploy_sub_hospital(client.uuid, parent_uuid, client_info)
         
-        if success:
-            db_name = re.sub(r'[^a-zA-Z0-9_-]', '_', request.client_name.lower())
-            db_name = re.sub(r'_+', '_', db_name).strip('_')
-            if not db_name:
-                db_name = f"sub_{client.uuid[:8]}"
-            
-            outputs_dict = parent_outputs.dict()
-            outputs_dict['database_name'] = db_name
-            outputs_dict['connection_uri'] = result
-            
-            client_service.update_client_outputs(db, client.uuid, outputs_dict)
-            client_service.update_client_status(db, client.uuid, ClientStatusEnum.COMPLETED)
-            
-            try:
-                table_success, table_message = db_service.create_tables(
-                    client.uuid, parent_uuid, db_name, region, parent_outputs.private_bucket_name
-                )
-                if not table_success:
-                    pass
-            except Exception:
-                pass
-        else:
-            client_service.update_client_status(db, client.uuid, ClientStatusEnum.FAILED, result)
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=result)
-        
-        client = client_service.get_client_by_uuid(db, client.uuid)
         return ClientRegistrationResponse(
             client_uuid=client.uuid,
             job_id=client.job_id,
-            status=client_service.map_db_status_to_api_status(client.status),
+            status=client_service.map_db_status_to_api_status(ClientStatusEnum.IN_PROGRESS),
             status_url=f"/api/clients/{client.uuid}/status",
             created_at=client.created_at
         )
@@ -88,6 +52,10 @@ async def register_sub_hospital(parent_uuid: str, request: ClientRegistrationReq
 
 @router.post("/{hospital_uuid}/sub-hospitals/create-tables")
 async def create_sub_tables(hospital_uuid: str, db: Session = Depends(get_db)):
+    from src.core.services.db_sub import SubHospitalDBService
+    from src.config.settings import settings
+    
+    db_service = SubHospitalDBService()
     client = client_service.get_client_by_uuid(db, hospital_uuid)
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Hospital not found: {hospital_uuid}")

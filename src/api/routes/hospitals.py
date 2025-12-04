@@ -2,16 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.core.database import get_db, ClientStatusEnum
 from src.core.client_service import ClientService
-from src.core.terraform_service import TerraformService
-from src.core.services.db_main import MainHospitalDBService
+from src.core.background_tasks import task_manager
 from src.models.models import ClientRegistrationRequest, ClientRegistrationResponse, ClientStatusResponse
-from src.api.error_handler import enhance_terraform_error
-from src.config.settings import settings
+from src.api.middleware.auth import verify_api_key
 
-router = APIRouter(prefix="/api/hospitals", tags=["Hospitals"])
+router = APIRouter(prefix="/api/hospitals", tags=["Hospitals"], dependencies=[Depends(verify_api_key)])
 client_service = ClientService()
-terraform_service = TerraformService()
-db_service = MainHospitalDBService()
 
 
 @router.post("/register", response_model=ClientRegistrationResponse, status_code=status.HTTP_201_CREATED)
@@ -27,36 +23,12 @@ async def register_hospital(request: ClientRegistrationRequest, db: Session = De
             "parent_uuid": request.parent_uuid
         }
         
-        success, outputs, error_message = terraform_service.run_full_deployment(client.uuid, client_info)
+        task_manager.deploy_hospital(client.uuid, client_info)
         
-        if success:
-            client_service.update_client_outputs(db, client.uuid, outputs)
-            client_service.update_client_status(db, client.uuid, ClientStatusEnum.COMPLETED)
-            
-            try:
-                region = request.region or settings.gcp_region
-                terraform_outputs = client_service.parse_terraform_outputs(
-                    client_service.get_client_by_uuid(db, client.uuid).terraform_outputs
-                )
-                private_bucket_name = terraform_outputs.private_bucket_name if terraform_outputs else None
-                
-                if private_bucket_name:
-                    table_success, table_message = db_service.create_tables(
-                        client.uuid, region, private_bucket_name
-                    )
-                    if not table_success:
-                        pass
-            except Exception:
-                pass
-        else:
-            enhanced_error = enhance_terraform_error(error_message)
-            client_service.update_client_status(db, client.uuid, ClientStatusEnum.FAILED, enhanced_error)
-        
-        client = client_service.get_client_by_uuid(db, client.uuid)
         return ClientRegistrationResponse(
             client_uuid=client.uuid,
             job_id=client.job_id,
-            status=client_service.map_db_status_to_api_status(client.status),
+            status=client_service.map_db_status_to_api_status(ClientStatusEnum.IN_PROGRESS),
             status_url=f"/api/clients/{client.uuid}/status",
             created_at=client.created_at
         )

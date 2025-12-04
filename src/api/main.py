@@ -50,8 +50,8 @@ app.include_router(sub_hospitals.router)
 app.include_router(common.router)
 
 
-@app.get("/", tags=["Root"])
-async def root():
+@app.get("/api", tags=["Root"])
+async def api_info():
     return {
         "message": "Multi-Client Terraform Provisioning API",
         "version": settings.api_version,
