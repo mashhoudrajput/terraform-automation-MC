@@ -3,407 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hospital Database Registration</title>
+    <title>Hospital Management System</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 40px;
-        }
-
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 2em;
-        }
-
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 1em;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 600;
-        }
-
-        input[type="text"] {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 1em;
-            transition: border-color 0.3s;
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 14px 28px;
-            border-radius: 8px;
-            font-size: 1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            width: 100%;
-        }
-
-        .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .status-container {
-            margin-top: 30px;
-            padding: 20px;
-            border-radius: 8px;
-            display: none;
-        }
-
-        .status-container.show {
-            display: block;
-        }
-
-        .status-in-progress {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
-        }
-
-        .status-completed {
-            background: #e8f5e9;
-            border-left: 4px solid #4caf50;
-        }
-
-        .status-failed {
-            background: #ffebee;
-            border-left: 4px solid #f44336;
-        }
-
-        .status-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .status-icon {
-            font-size: 1.5em;
-            font-weight: bold;
-        }
-
-        .status-title {
-            font-size: 1.2em;
-            font-weight: 600;
-        }
-
-        .spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #2196f3;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .status-details {
-            line-height: 1.8;
-            color: #555;
-        }
-
-        .hospitals-list {
-            margin-top: 40px;
-            padding-top: 30px;
-            border-top: 2px solid #e0e0e0;
-        }
-
-        .hospitals-list h2 {
-            color: #333;
-            margin-bottom: 20px;
-        }
-
-        .hospital-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px;
-            margin-bottom: 10px;
-            background: #f9f9f9;
-            border-radius: 8px;
-            transition: background 0.3s;
-        }
-
-        .hospital-item:hover {
-            background: #f0f0f0;
-        }
-
-        .hospital-info {
-            flex: 1;
-        }
-
-        .hospital-name {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 5px;
-        }
-
-        .hospital-date {
-            font-size: 0.85em;
-            color: #666;
-        }
-
-        .hospital-status {
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
-        .hospital-actions {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .delete-btn {
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 0.85em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .delete-btn:hover {
-            background: #c82333;
-        }
-
-        .delete-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .add-sub-btn {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 0.85em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .add-sub-btn:hover {
-            background: #218838;
-        }
-
-        .create-tables-btn {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 0.85em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .create-tables-btn:hover:not(:disabled) {
-            background: #0056b3;
-        }
-
-        .create-tables-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-
-        .error-message {
-            color: #dc3545;
-            margin-top: 10px;
-            padding: 10px;
-            background: #f8d7da;
-            border-radius: 6px;
-            font-size: 0.9em;
-        }
-
-        .sub-hospital-form {
-            margin-top: 20px;
-            padding: 20px;
-            background: #f9f9f9;
-            border-radius: 8px;
-            display: none;
-        }
-
-        .sub-hospital-form.show {
-            display: block;
-        }
-
-        .status-badge-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .status-badge-in-progress {
-            background: #cce5ff;
-            color: #004085;
-        }
-
-        .status-badge-completed {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status-badge-failed {
-            background: #f8d7da;
-            color: #721c24;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); padding: 40px; }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #333; font-weight: 600; }
+        input[type="text"] { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em; transition: border-color 0.3s; }
+        input[type="text"]:focus { outline: none; border-color: #667eea; }
+        .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px 28px; border-radius: 8px; font-size: 1em; font-weight: 600; cursor: pointer; transition: transform 0.2s; width: 100%; }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-sm { padding: 6px 12px; font-size: 0.85em; width: auto; }
+        .btn-success { background: #28a745; }
+        .btn-danger { background: #dc3545; }
+        .btn-primary { background: #007bff; }
+        .status-container { margin-top: 30px; padding: 20px; border-radius: 8px; display: none; }
+        .status-container.show { display: block; }
+        .status-in-progress { background: #e3f2fd; border-left: 4px solid #2196f3; }
+        .status-completed { background: #e8f5e9; border-left: 4px solid #4caf50; }
+        .status-failed { background: #ffebee; border-left: 4px solid #f44336; }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #2196f3; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hospitals-list { margin-top: 40px; padding-top: 30px; border-top: 2px solid #e0e0e0; }
+        .hospital-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; margin-bottom: 10px; background: #f9f9f9; border-radius: 8px; }
+        .hospital-item:hover { background: #f0f0f0; }
+        .hospital-info { flex: 1; }
+        .hospital-name { font-weight: 600; color: #333; margin-bottom: 5px; }
+        .hospital-date { font-size: 0.85em; color: #666; }
+        .hospital-actions { display: flex; gap: 10px; align-items: center; }
+        .status-badge { padding: 5px 12px; border-radius: 20px; font-size: 0.85em; font-weight: 600; }
+        .status-badge-pending { background: #fff3cd; color: #856404; }
+        .status-badge-in-progress { background: #cce5ff; color: #004085; }
+        .status-badge-completed { background: #d4edda; color: #155724; }
+        .status-badge-failed { background: #f8d7da; color: #721c24; }
+        .error-message { color: #dc3545; margin-top: 10px; padding: 10px; background: #f8d7da; border-radius: 6px; font-size: 0.9em; display: none; }
+        .success-message { color: #155724; margin-top: 10px; padding: 10px; background: #d4edda; border-radius: 6px; font-size: 0.9em; display: none; }
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Hospital Database Registration</h1>
-        <p class="subtitle">Register a new hospital and automatically create its database and tables</p>
+        <h1>Hospital Management System</h1>
+        <p class="subtitle">Register hospitals and manage databases</p>
 
         <form id="hospitalForm">
             <div class="form-group">
                 <label for="hospitalName">Hospital Name *</label>
-                <input 
-                    type="text" 
-                    id="hospitalName" 
-                    name="hospitalName" 
-                    placeholder="Enter hospital name (e.g., City General Hospital)"
-                    required
-                >
+                <input type="text" id="hospitalName" name="hospitalName" placeholder="Enter hospital name" required>
             </div>
-
             <div class="form-group">
                 <label for="hospitalUuid">Hospital UUID *</label>
-                <input 
-                    type="text" 
-                    id="hospitalUuid" 
-                    name="hospitalUuid" 
-                    placeholder="Enter UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)"
-                    required
-                    pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                >
+                <input type="text" id="hospitalUuid" name="hospitalUuid" placeholder="Enter UUID" required pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}">
             </div>
-
-            <button type="submit" class="btn" id="submitBtn">
-                Register Hospital & Create Database
-            </button>
+            <button type="submit" class="btn" id="submitBtn">Register Hospital</button>
         </form>
 
-        <div id="statusContainer" class="status-container">
-            <div class="status-header">
-                <span class="status-icon" id="statusIcon"></span>
-                <span class="status-title" id="statusTitle"></span>
-            </div>
-            <div class="status-details" id="statusDetails"></div>
-        </div>
-
-        <div id="errorMessage" class="error-message" style="display: none;"></div>
+        <div id="statusContainer" class="status-container"></div>
+        <div id="errorMessage" class="error-message"></div>
+        <div id="successMessage" class="success-message"></div>
 
         <div class="hospitals-list">
             <h2>Registered Hospitals</h2>
-            <div id="hospitalsList">
-                <p style="color: #666;">Loading hospitals...</p>
-            </div>
+            <div id="hospitalsList">Loading...</div>
         </div>
     </div>
 
     <script>
         const API_BASE = 'http://localhost:8000';
         let statusCheckInterval = null;
-        let currentHospitalUuid = null;
 
-        document.addEventListener('DOMContentLoaded', () => {
-            loadHospitals();
-        });
+        document.addEventListener('DOMContentLoaded', () => loadHospitals());
 
         document.getElementById('hospitalForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const name = document.getElementById('hospitalName').value.trim();
+            const uuid = document.getElementById('hospitalUuid').value.trim();
             
-            const hospitalName = document.getElementById('hospitalName').value.trim();
-            const hospitalUuid = document.getElementById('hospitalUuid').value.trim();
-            
-            if (!hospitalName) {
-                showError('Please enter a hospital name');
-                return;
-            }
-            
-            if (!hospitalUuid) {
-                showError('Please enter a UUID');
+            if (!name || !uuid) {
+                showError('Please fill in all fields');
                 return;
             }
 
-            const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            if (!uuidPattern.test(hospitalUuid)) {
+            if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)) {
                 showError('Please enter a valid UUID format');
                 return;
             }
 
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Creating Database...';
-            
-            hideError();
-            hideStatus();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+            hideMessages();
 
             try {
                 const response = await fetch(`${API_BASE}/api/hospitals/register`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        client_name: hospitalName,
-                        client_uuid: hospitalUuid,
+                        client_name: name,
+                        client_uuid: uuid,
                         environment: 'prod',
                         region: 'me-central2'
                     })
@@ -415,114 +117,59 @@
                 }
 
                 const data = await response.json();
-                currentHospitalUuid = data.client_uuid;
                 showStatus('in_progress', data);
                 startStatusPolling(data.client_uuid);
-                
-                document.getElementById('hospitalName').value = '';
-                document.getElementById('hospitalUuid').value = '';
-                
+                document.getElementById('hospitalForm').reset();
             } catch (error) {
                 showError(error.message);
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Register Hospital & Create Database';
+                btn.disabled = false;
+                btn.textContent = 'Register Hospital';
             }
         });
 
         function showStatus(status, data) {
             const container = document.getElementById('statusContainer');
-            const icon = document.getElementById('statusIcon');
-            const title = document.getElementById('statusTitle');
-            const details = document.getElementById('statusDetails');
-
             container.className = 'status-container show';
             
             if (status === 'in_progress') {
                 container.classList.add('status-in-progress');
-                icon.innerHTML = '<span class="spinner"></span>';
-                title.textContent = 'Database Creation In Process...';
-                details.innerHTML = `
-                    <strong>Hospital:</strong> ${data.client_name || 'N/A'}<br>
-                    <strong>Status:</strong> Creating database and tables<br>
-                    <strong>Job ID:</strong> ${data.job_id}<br>
-                    <strong>UUID:</strong> ${data.client_uuid}<br>
-                    <br>
-                    <em>This may take 5-10 minutes. Please wait...</em>
+                container.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <span class="spinner"></span>
+                        <span style="font-weight: 600;">Database Creation In Process...</span>
+                    </div>
+                    <div>Hospital: ${data.client_name || 'N/A'}<br>UUID: ${data.client_uuid}<br><em>This may take 5-10 minutes...</em></div>
                 `;
             } else if (status === 'completed') {
                 container.classList.remove('status-in-progress');
                 container.classList.add('status-completed');
-                icon.textContent = '✓';
-                title.textContent = 'Database Created Successfully!';
-                details.innerHTML = `
-                    <strong>Hospital:</strong> ${data.client_name || 'N/A'}<br>
-                    <strong>Status:</strong> Database and tables created successfully<br>
-                    <strong>Connection String:</strong> Saved in Secret Manager<br>
-                    <strong>Secret Name:</strong> ${data.terraform_outputs?.secret_name || 'N/A'}<br>
-                    <br>
-                    <strong>Database Details:</strong><br>
-                    • Host: ${data.terraform_outputs?.db_private_ip || 'N/A'}<br>
-                    • Database: ${data.terraform_outputs?.database_name || 'N/A'}<br>
-                    • Port: ${data.terraform_outputs?.db_port || '3306'}<br>
-                    <br>
-                    <button class="create-tables-btn" onclick="createTables('${data.client_uuid}')" id="createTablesBtn">
-                        Create Tables
-                    </button>
-                    <button class="add-sub-btn" onclick="showSubHospitalForm('${data.client_uuid}')" style="margin-left: 10px;">
-                        Add Sub Hospital
-                    </button>
+                container.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 15px;">✓ Database Created Successfully!</div>
+                    <div>Hospital: ${data.client_name || 'N/A'}<br>Status: Database and tables created</div>
                 `;
             } else if (status === 'failed') {
                 container.classList.remove('status-in-progress');
                 container.classList.add('status-failed');
-                icon.textContent = '✗';
-                title.textContent = 'Database Creation Failed';
-                details.innerHTML = `
-                    <strong>Hospital:</strong> ${data.client_name || 'N/A'}<br>
-                    <strong>Error:</strong> ${data.error_message || 'Unknown error'}<br>
-                    <br>
-                    Please try again or contact support.
+                container.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 15px;">✗ Database Creation Failed</div>
+                    <div>Hospital: ${data.client_name || 'N/A'}<br>Error: ${data.error_message || 'Unknown error'}</div>
                 `;
             }
         }
 
-        function hideStatus() {
-            document.getElementById('statusContainer').classList.remove('show');
-        }
-
-        function showError(message) {
-            const errorDiv = document.getElementById('errorMessage');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-        }
-
-        function hideError() {
-            document.getElementById('errorMessage').style.display = 'none';
-        }
-
         function startStatusPolling(hospitalUuid) {
-            if (statusCheckInterval) {
-                clearInterval(statusCheckInterval);
-            }
-
+            if (statusCheckInterval) clearInterval(statusCheckInterval);
             statusCheckInterval = setInterval(async () => {
                 try {
                     const response = await fetch(`${API_BASE}/api/hospitals/${hospitalUuid}/status`);
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch status');
-                    }
-
+                    if (!response.ok) throw new Error('Failed to fetch status');
                     const data = await response.json();
                     showStatus(data.status, data);
-
                     if (data.status === 'completed' || data.status === 'failed') {
                         clearInterval(statusCheckInterval);
                         statusCheckInterval = null;
-                        
-                        const submitBtn = document.getElementById('submitBtn');
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = 'Register Hospital & Create Database';
-                        
+                        document.getElementById('submitBtn').disabled = false;
+                        document.getElementById('submitBtn').textContent = 'Register Hospital';
                         loadHospitals();
                     }
                 } catch (error) {
@@ -534,141 +181,95 @@
         async function loadHospitals() {
             try {
                 const response = await fetch(`${API_BASE}/api/hospitals`);
-                if (!response.ok) {
-                    throw new Error('Failed to load hospitals');
-                }
-
+                if (!response.ok) throw new Error('Failed to load hospitals');
                 const data = await response.json();
                 const listDiv = document.getElementById('hospitalsList');
 
                 if (data.clients && data.clients.length > 0) {
-                    listDiv.innerHTML = data.clients.map(hospital => {
-                        const date = new Date(hospital.created_at);
-                        const formattedDate = date.toLocaleString('en-US', {
-                            month: '2-digit',
-                            day: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            hour12: true
-                        });
-                        
-                        const isMainHospital = !hospital.parent_uuid;
-                        
+                    listDiv.innerHTML = data.clients.map(h => {
+                        const date = new Date(h.created_at).toLocaleString();
+                        const isMain = !h.parent_uuid;
                         return `
-                        <div class="hospital-item">
-                            <div class="hospital-info">
-                                <div class="hospital-name">${hospital.client_name} ${isMainHospital ? '' : '<span style="color: #666; font-size: 0.9em;">(Sub-Hospital)</span>'}</div>
-                                <div class="hospital-date">${formattedDate}</div>
-                                <div style="font-size: 0.8em; color: #999; margin-top: 5px;">UUID: ${hospital.client_uuid}</div>
+                            <div class="hospital-item">
+                                <div class="hospital-info">
+                                    <div class="hospital-name">${h.client_name} ${isMain ? '' : '<span style="color: #666; font-size: 0.9em;">(Sub-Hospital)</span>'}</div>
+                                    <div class="hospital-date">${date} | UUID: ${h.client_uuid}</div>
+                                </div>
+                                <div class="hospital-actions">
+                                    <span class="status-badge status-badge-${h.status.replace('_', '-')}">${getStatusText(h.status)}</span>
+                                    ${h.status === 'completed' ? `<button class="btn btn-sm btn-primary" onclick="createTables('${h.client_uuid}')">Create Tables</button>` : ''}
+                                    ${isMain && h.status === 'completed' ? `<button class="btn btn-sm btn-success" onclick="showSubHospitalForm('${h.client_uuid}')">Add Sub Hospital</button>` : ''}
+                                    <button class="btn btn-sm btn-danger" onclick="deleteHospital('${h.client_uuid}', '${h.client_name}')" ${h.status === 'in_progress' ? 'disabled' : ''}>Delete</button>
+                                </div>
                             </div>
-                            <div class="hospital-actions">
-                                <span class="hospital-status status-badge-${hospital.status.replace('_', '-')}">
-                                    ${getStatusText(hospital.status)}
-                                </span>
-                                ${hospital.status === 'completed' ? `
-                                    <button class="create-tables-btn" onclick="createTables('${hospital.client_uuid}')" id="createTablesBtn-${hospital.client_uuid}">
-                                        Create Tables
-                                    </button>
-                                ` : ''}
-                                ${isMainHospital && hospital.status === 'completed' ? `<button class="add-sub-btn" onclick="showSubHospitalForm('${hospital.client_uuid}')">Add Sub Hospital</button>` : ''}
-                                ${!isMainHospital && hospital.status === 'completed' ? `<span style="color: #666; font-size: 0.85em;">Parent: ${hospital.parent_uuid}</span>` : ''}
-                                <button class="delete-btn" onclick="deleteHospital('${hospital.client_uuid}', '${hospital.client_name}')" 
-                                        ${hospital.status === 'in_progress' ? 'disabled' : ''}>
-                                    Delete
-                                </button>
-                            </div>
-                        </div>
-                    `;
+                        `;
                     }).join('');
                 } else {
                     listDiv.innerHTML = '<p style="color: #666;">No hospitals registered yet.</p>';
                 }
             } catch (error) {
-                document.getElementById('hospitalsList').innerHTML = 
-                    '<p style="color: #dc3545;">Error loading hospitals. Please refresh the page.</p>';
+                document.getElementById('hospitalsList').innerHTML = '<p style="color: #dc3545;">Error loading hospitals.</p>';
             }
         }
 
         function getStatusText(status) {
-            const statusMap = {
-                'pending': 'Pending',
-                'in_progress': 'Database Creating...',
-                'completed': 'Created Successfully',
-                'failed': 'Failed'
-            };
-            return statusMap[status] || status;
+            const map = { 'pending': 'Pending', 'in_progress': 'Creating...', 'completed': 'Created', 'failed': 'Failed' };
+            return map[status] || status;
         }
 
         function showSubHospitalForm(parentUuid) {
-            // Create modal form
-            const formHtml = `
-                <div id="subHospitalModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
-                    <div style="background: white; padding: 30px; border-radius: 12px; max-width: 500px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
-                        <h2 style="margin-bottom: 20px; color: #333;">Add Sub-Hospital</h2>
-                        <form id="subHospitalForm">
-                            <div class="form-group">
-                                <label for="subHospitalName">Sub-Hospital Name *</label>
-                                <input type="text" id="subHospitalName" name="subHospitalName" 
-                                       placeholder="Enter sub-hospital name" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em;">
-                            </div>
-                            <div class="form-group">
-                                <label for="subHospitalUuid">Sub-Hospital UUID *</label>
-                                <input type="text" id="subHospitalUuid" name="subHospitalUuid" 
-                                       placeholder="Enter UUID (e.g., 550e8400-e29b-41d4-a716-446655440000)" required
-                                       pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                                       style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em;">
-                            </div>
-                            <div style="display: flex; gap: 10px; margin-top: 20px;">
-                                <button type="submit" class="btn" style="flex: 1; background: #28a745;">Create Database</button>
-                                <button type="button" onclick="closeSubHospitalModal()" class="btn" style="flex: 1; background: #6c757d;">Cancel</button>
-                            </div>
-                        </form>
-                    </div>
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.id = 'subHospitalModal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h2 style="margin-bottom: 20px;">Add Sub-Hospital</h2>
+                    <form id="subHospitalForm">
+                        <div class="form-group">
+                            <label for="subHospitalName">Sub-Hospital Name *</label>
+                            <input type="text" id="subHospitalName" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                        </div>
+                        <div class="form-group">
+                            <label for="subHospitalUuid">Sub-Hospital UUID *</label>
+                            <input type="text" id="subHospitalUuid" required pattern="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button type="submit" class="btn btn-success" style="flex: 1;">Create</button>
+                            <button type="button" onclick="closeModal()" class="btn" style="flex: 1; background: #6c757d;">Cancel</button>
+                        </div>
+                    </form>
                 </div>
             `;
-            
-            document.body.insertAdjacentHTML('beforeend', formHtml);
+            document.body.appendChild(modal);
             
             document.getElementById('subHospitalForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const subName = document.getElementById('subHospitalName').value.trim();
-                const subUuid = document.getElementById('subHospitalUuid').value.trim();
+                const name = document.getElementById('subHospitalName').value.trim();
+                const uuid = document.getElementById('subHospitalUuid').value.trim();
                 
-                if (!subName || !subUuid) {
-                    showError('Please fill in all fields');
+                if (!name || !uuid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)) {
+                    showError('Please fill in all fields with valid UUID');
                     return;
                 }
                 
-                const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                if (!uuidPattern.test(subUuid)) {
-                    showError('Please enter a valid UUID format');
-                    return;
-                }
-                
-                closeSubHospitalModal();
-                registerSubHospital(parentUuid, subUuid, subName);
+                closeModal();
+                await registerSubHospital(parentUuid, uuid, name);
             });
         }
-        
-        function closeSubHospitalModal() {
+
+        function closeModal() {
             const modal = document.getElementById('subHospitalModal');
-            if (modal) {
-                modal.remove();
-            }
+            if (modal) modal.remove();
         }
 
         async function registerSubHospital(parentUuid, subUuid, subName) {
             try {
-                hideError();
+                hideMessages();
                 showStatus('in_progress', {client_name: subName, client_uuid: subUuid, job_id: 'pending'});
                 
                 const response = await fetch(`${API_BASE}/api/hospitals/${parentUuid}/sub-hospitals/register`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         client_name: subName,
                         client_uuid: subUuid,
@@ -686,35 +287,24 @@
                 showStatus('in_progress', data);
                 startStatusPolling(data.client_uuid);
                 loadHospitals();
-                
             } catch (error) {
                 hideStatus();
                 showError(`Failed to register sub-hospital: ${error.message}`);
             }
         }
 
-        setInterval(() => {
-            loadHospitals();
-        }, 5000);
-
         async function createTables(hospitalUuid) {
-            const btn = document.getElementById(`createTablesBtn-${hospitalUuid}`) || document.getElementById('createTablesBtn');
-            if (!btn) return;
+            if (!confirm('Create all database tables? This may take a few minutes.')) return;
             
-            if (!confirm('This will create all database tables using ClusterDB.sql. Continue?')) {
-                return;
-            }
-            
+            const btn = event.target;
             btn.disabled = true;
             btn.textContent = 'Creating...';
-            hideError();
+            hideMessages();
             
             try {
                 const response = await fetch(`${API_BASE}/api/hospitals/${hospitalUuid}/create-tables`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
                 
                 if (!response.ok) {
@@ -723,24 +313,7 @@
                 }
                 
                 const result = await response.json();
-                
-                // Show success message
-                const errorDiv = document.getElementById('errorMessage');
-                if (errorDiv) {
-                    errorDiv.style.background = '#d4edda';
-                    errorDiv.style.color = '#155724';
-                    errorDiv.style.border = '1px solid #c3e6cb';
-                    errorDiv.textContent = `✓ Tables created successfully! ${result.message || ''}`;
-                    errorDiv.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        errorDiv.style.display = 'none';
-                        errorDiv.style.background = '';
-                        errorDiv.style.color = '';
-                        errorDiv.style.border = '';
-                    }, 5000);
-                }
-                
+                showSuccess(`Tables created successfully! ${result.message || ''}`);
             } catch (error) {
                 showError(`Failed to create tables: ${error.message}`);
             } finally {
@@ -750,13 +323,11 @@
         }
 
         async function deleteHospital(uuid, name) {
-            if (!confirm(`Are you sure you want to delete "${name}"?\n\nThis will destroy all infrastructure including:\n- Cloud SQL database\n- Storage buckets\n- Secret Manager secrets\n\nThis action cannot be undone.`)) {
-                return;
-            }
+            if (!confirm(`Delete "${name}"?\n\nThis will destroy all infrastructure. This action cannot be undone.`)) return;
 
-            const deleteBtn = event.target;
-            deleteBtn.disabled = true;
-            deleteBtn.textContent = 'Deleting...';
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Deleting...';
 
             try {
                 const response = await fetch(`${API_BASE}/api/clients/${uuid}?skip_infrastructure=false`, {
@@ -768,20 +339,41 @@
                     throw new Error(error.detail || 'Failed to delete hospital');
                 }
 
-                const result = await response.json();
-                showError(`Hospital "${name}" deleted successfully. Infrastructure is being destroyed.`);
-                
+                showSuccess(`Hospital "${name}" deleted successfully.`);
                 setTimeout(() => {
                     loadHospitals();
-                    hideError();
+                    hideMessages();
                 }, 2000);
-
             } catch (error) {
                 showError(`Failed to delete hospital: ${error.message}`);
-                deleteBtn.disabled = false;
-                deleteBtn.textContent = 'Delete';
+                btn.disabled = false;
+                btn.textContent = 'Delete';
             }
         }
+
+        function showError(message) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+
+        function showSuccess(message) {
+            const el = document.getElementById('successMessage');
+            el.textContent = message;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+
+        function hideMessages() {
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        function hideStatus() {
+            document.getElementById('statusContainer').classList.remove('show');
+        }
+
+        setInterval(() => loadHospitals(), 5000);
     </script>
 </body>
 </html>
