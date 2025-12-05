@@ -203,7 +203,7 @@
                     }
                     const data = await response.json();
                     updateHospitalStatus(hospitalUuid, data.status, data);
-                    
+
                     if (data.status === 'completed' || data.status === 'failed') {
                         clearInterval(interval);
                         statusPolls.delete(hospitalUuid);
@@ -418,7 +418,7 @@
             el.textContent = message;
             el.style.display = 'block';
             setTimeout(() => el.style.display = 'none', 5000);
-        }
+            }
 
         function hideMessages() {
             document.getElementById('errorMessage').style.display = 'none';

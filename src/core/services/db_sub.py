@@ -165,24 +165,32 @@ if ! gsutil cp {gcs_path} /tmp/create_tables_{client_uuid}.sql; then
     exit 1
 fi
 
+echo "Wrapping SQL to disable foreign key checks during import..."
+echo "SET FOREIGN_KEY_CHECKS=0;" > /tmp/create_tables_{client_uuid}_wrapped.sql
+cat /tmp/create_tables_{client_uuid}.sql >> /tmp/create_tables_{client_uuid}_wrapped.sql
+echo "SET FOREIGN_KEY_CHECKS=1;" >> /tmp/create_tables_{client_uuid}_wrapped.sql
+
+echo "Recreating database to ensure a clean state..."
+mysql -h {conn_info['host']} -P {conn_info['port']} -u {conn_info['user']} -p'{escaped_password}' --connect-timeout=10 -e 'DROP DATABASE IF EXISTS `{conn_info['database']}`; CREATE DATABASE IF NOT EXISTS `{conn_info['database']}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;' mysql 2>&1
+
 echo "Testing database connection..."
 if ! timeout 30 mysql -h {conn_info['host']} -P {conn_info['port']} -u {conn_info['user']} -p'{escaped_password}' --connect-timeout=10 -e "SELECT 1;" {conn_info['database']} 2>&1; then
     echo "ERROR: Failed to connect to database"
-    rm -f /tmp/create_tables_{client_uuid}.sql
+    rm -f /tmp/create_tables_{client_uuid}.sql /tmp/create_tables_{client_uuid}_wrapped.sql
     exit 1
 fi
 
 echo "Executing SQL statements..."
-timeout 540 mysql -h {conn_info['host']} -P {conn_info['port']} -u {conn_info['user']} -p'{escaped_password}' --connect-timeout=10 {conn_info['database']} < /tmp/create_tables_{client_uuid}.sql 2>&1
+timeout 540 mysql -h {conn_info['host']} -P {conn_info['port']} -u {conn_info['user']} -p'{escaped_password}' --connect-timeout=10 {conn_info['database']} < /tmp/create_tables_{client_uuid}_wrapped.sql 2>&1
 
 EXIT_CODE=$?
 if [ $EXIT_CODE -eq 0 ]; then
     echo "Tables created successfully"
-    rm -f /tmp/create_tables_{client_uuid}.sql
+    rm -f /tmp/create_tables_{client_uuid}.sql /tmp/create_tables_{client_uuid}_wrapped.sql
     exit 0
 else
     echo "ERROR: Failed to create tables (exit code: $EXIT_CODE)"
-    rm -f /tmp/create_tables_{client_uuid}.sql
+    rm -f /tmp/create_tables_{client_uuid}.sql /tmp/create_tables_{client_uuid}_wrapped.sql
     exit 1
 fi
 """
