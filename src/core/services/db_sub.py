@@ -24,7 +24,7 @@ class SubHospitalDBService(BaseDatabaseService):
             if not db_name:
                 db_name = f"sub_{sub_hospital_uuid[:8]}"
             
-            escaped_password = conn_info['password'].replace("'", "'\"'\"'")
+            escaped_password = self.escape_password_for_shell(conn_info['password'])
             mysql_command = f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
             ssh_command = f"echo '{mysql_command}' | mysql -h {conn_info['host']} -P {conn_info['port']} -u {conn_info['user']} -p'{escaped_password}' mysql 2>&1 && echo 'SUCCESS: Database {db_name} created' || echo 'ERROR: Database creation failed'"
             
@@ -82,7 +82,7 @@ class SubHospitalDBService(BaseDatabaseService):
             if not upload_success:
                 return False, f"Failed to upload SQL file: {gcs_path}"
             
-            escaped_password = conn_info['password'].replace("'", "'\"'\"'")
+            escaped_password = self.escape_password_for_shell(conn_info['password'])
             script_content = self._generate_script(conn_info, escaped_password, gcs_path, client_uuid, sql_filename)
             
             env = os.environ.copy()

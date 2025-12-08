@@ -63,4 +63,13 @@ class BaseDatabaseService:
         db_name = re.sub(r'[^a-zA-Z0-9_-]', '_', name.lower())
         db_name = re.sub(r'_+', '_', db_name).strip('_')
         return db_name if db_name else f"db_{name[:8]}"
+    
+    def escape_password_for_shell(self, password: str) -> str:
+        """
+        Escape password for use in shell commands with single quotes.
+        Handles single quotes by ending quote, adding escaped quote, starting new quote.
+        Example: 'test' -> 'test'\''test'
+        """
+        # Replace single quotes with: ' (end quote) + \' (escaped quote) + ' (start quote)
+        return password.replace("'", "'\\''")
 

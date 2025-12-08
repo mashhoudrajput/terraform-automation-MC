@@ -34,7 +34,7 @@ class MainHospitalDBService(BaseDatabaseService):
             if not upload_success:
                 return False, f"Failed to upload SQL file: {gcs_path}"
             
-            escaped_password = conn_info['password'].replace("'", "'\"'\"'")
+            escaped_password = self.escape_password_for_shell(conn_info['password'])
             script_content = self._generate_script(conn_info, escaped_password, gcs_path, client_uuid, sql_filename)
             
             env = os.environ.copy()

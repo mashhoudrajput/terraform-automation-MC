@@ -30,7 +30,7 @@ locals {
 }
 
 resource "random_id" "db_password" {
-  byte_length = 8
+  byte_length = 12
 
   lifecycle {
     ignore_changes = all
@@ -38,7 +38,7 @@ resource "random_id" "db_password" {
 }
 
 locals {
-  db_password = random_id.db_password.b64_std
+  db_password = random_id.db_password.b64_url
 }
 
 data "google_compute_network" "default" {
