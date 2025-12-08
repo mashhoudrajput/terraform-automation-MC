@@ -38,18 +38,6 @@ class BackgroundTaskManager:
                 if success:
                     client_service.update_client_outputs(db, client_uuid, outputs)
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.COMPLETED)
-                    
-                    try:
-                        region = client_info.get('region') or settings.gcp_region
-                        terraform_outputs = client_service.parse_terraform_outputs(
-                            client_service.get_client_by_uuid(db, client_uuid).terraform_outputs
-                        )
-                        private_bucket_name = terraform_outputs.private_bucket_name if terraform_outputs else None
-                        
-                        if private_bucket_name:
-                            db_service.create_tables(client_uuid, region, private_bucket_name)
-                    except Exception:
-                        pass
                 else:
                     enhanced_error = enhance_terraform_error(error_message)
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, enhanced_error)
@@ -79,7 +67,7 @@ class BackgroundTaskManager:
             db = SessionLocal()
             try:
                 client_service = ClientService()
-                db_service = SubHospitalDBService()
+                terraform_service = TerraformService()
                 
                 client_service.update_client_status(db, client_uuid, ClientStatusEnum.IN_PROGRESS)
                 
@@ -88,41 +76,21 @@ class BackgroundTaskManager:
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, "Parent hospital not found")
                     return
                 
-                parent_outputs = client_service.parse_terraform_outputs(parent_hospital.terraform_outputs)
-                if not parent_outputs or not parent_outputs.private_bucket_name:
+                if parent_hospital.status != ClientStatusEnum.COMPLETED:
                     client_service.update_client_status(
                         db, client_uuid, ClientStatusEnum.FAILED,
-                        "Failed to retrieve parent hospital's private bucket name"
+                        "Parent hospital deployment not completed"
                     )
                     return
                 
-                region = client_info.get('region') or settings.gcp_region
-                success, result = db_service.create_database(
-                    parent_uuid, client_info.get('client_name'), client_uuid,
-                    parent_outputs.private_bucket_name, region
-                )
+                success, outputs, error_message = terraform_service.run_full_deployment(client_uuid, client_info)
                 
                 if success:
-                    db_name = re.sub(r'[^a-zA-Z0-9_-]', '_', client_info.get('client_name', '').lower())
-                    db_name = re.sub(r'_+', '_', db_name).strip('_')
-                    if not db_name:
-                        db_name = f"sub_{client_uuid[:8]}"
-                    
-                    outputs_dict = parent_outputs.dict()
-                    outputs_dict['database_name'] = db_name
-                    outputs_dict['connection_uri'] = result
-                    
-                    client_service.update_client_outputs(db, client_uuid, outputs_dict)
+                    client_service.update_client_outputs(db, client_uuid, outputs)
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.COMPLETED)
-                    
-                    try:
-                        table_success, table_message = db_service.create_tables(
-                            client_uuid, parent_uuid, db_name, region, parent_outputs.private_bucket_name
-                        )
-                    except Exception:
-                        pass
                 else:
-                    client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, result)
+                    enhanced_error = enhance_terraform_error(error_message)
+                    client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, enhanced_error)
             except Exception as e:
                 try:
                     client_service = ClientService()

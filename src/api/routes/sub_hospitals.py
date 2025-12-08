@@ -75,18 +75,17 @@ async def create_sub_tables(hospital_uuid: str, db: Session = Depends(get_db)):
         if not parent_hospital:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent hospital not found")
         
-        parent_outputs = client_service.parse_terraform_outputs(parent_hospital.terraform_outputs)
-        if not parent_outputs or not parent_outputs.private_bucket_name:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent hospital's private bucket name not found")
-        
         terraform_outputs = client_service.parse_terraform_outputs(client.terraform_outputs)
+        if not terraform_outputs or not terraform_outputs.private_bucket_name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sub-hospital's private bucket name not found in outputs")
+        
         database_name = terraform_outputs.database_name if terraform_outputs else None
         
         if not database_name:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Database name not found in outputs")
         
         success, message = db_service.create_tables(
-            hospital_uuid, client.parent_uuid, database_name, region, parent_outputs.private_bucket_name
+            hospital_uuid, client.parent_uuid, database_name, region, terraform_outputs.private_bucket_name
         )
         
         if success:

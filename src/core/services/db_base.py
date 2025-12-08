@@ -48,7 +48,7 @@ class BaseDatabaseService:
         response = self.secret_client.access_secret_version(request={"name": secret_path})
         return response.payload.data.decode("UTF-8")
     
-    def upload_sql_to_bucket(self, bucket_name: str, client_uuid: str, sql_content: str, sql_filename: str = "ClusterDB.sql") -> Tuple[bool, str]:
+    def upload_sql_to_bucket(self, bucket_name: str, client_uuid: str, sql_content: str, sql_filename: str = "cluster_hospitals.sql") -> Tuple[bool, str]:
         try:
             storage_client = storage.Client(project=settings.gcp_project_id)
             bucket = storage_client.bucket(bucket_name)

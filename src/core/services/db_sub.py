@@ -68,7 +68,7 @@ class SubHospitalDBService(BaseDatabaseService):
             conn_info = self.parse_connection_uri(connection_uri)
             conn_info['database'] = database_name
             
-            sql_filename = "sn_tables.sql"
+            sql_filename = "subnetwork_hospitals.sql"
             sql_file_path = Path(f"/app/infrastructure/base/sql/{sql_filename}")
             if not sql_file_path.exists():
                 sql_file_path = settings.base_dir / "infrastructure" / "base" / "sql" / sql_filename

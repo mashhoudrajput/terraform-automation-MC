@@ -107,8 +107,8 @@ output "jdbc_connection_string" {
 }
 
 output "connection_uri" {
-  description = "Database connection URI in MySQL format (mysql://username:password@host:port/database). For sub-hospitals, retrieve from parent secret."
-  value       = var.is_sub_hospital ? "" : "mysql://${google_sql_user.admin[0].name}:${local.db_password}@${google_sql_database_instance.mysql[0].private_ip_address}:${var.db_port}/${local.database_name}"
+  description = "Database connection URI in MySQL format (mysql://username:password@host:port/database)"
+  value       = var.is_sub_hospital ? google_secret_manager_secret_version.db_uri.secret_data : "mysql://${google_sql_user.admin[0].name}:${local.db_password}@${google_sql_database_instance.mysql[0].private_ip_address}:${var.db_port}/${local.database_name}"
   sensitive   = true
 }
 
@@ -118,22 +118,22 @@ output "connection_uri" {
 
 output "secret_name" {
   description = "The name of the database URI secret in Secret Manager"
-  value       = var.is_sub_hospital ? "" : local.secret_name
+  value       = local.secret_name
 }
 
 output "secret_id" {
   description = "The full resource ID of the secret"
-  value       = var.is_sub_hospital ? "" : google_secret_manager_secret.db_uri[0].id
+  value       = google_secret_manager_secret.db_uri.id
 }
 
 output "secret_project_number" {
   description = "The project number containing the secret"
-  value       = var.is_sub_hospital ? "" : google_secret_manager_secret.db_uri[0].name
+  value       = google_secret_manager_secret.db_uri.name
 }
 
 output "secret_access_command" {
   description = "gcloud command to retrieve the database URI from Secret Manager"
-  value       = var.is_sub_hospital ? "" : "gcloud secrets versions access latest --secret=${google_secret_manager_secret.db_uri[0].secret_id} --project=${var.project_id}"
+  value       = "gcloud secrets versions access latest --secret=${google_secret_manager_secret.db_uri.secret_id} --project=${var.project_id}"
 }
 
 # ============================================================================
@@ -142,37 +142,37 @@ output "secret_access_command" {
 
 output "private_bucket_name" {
   description = "The name of the private storage bucket"
-  value       = var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].name : google_storage_bucket.private[0].name
+  value       = google_storage_bucket.private.name
 }
 
 output "private_bucket_url" {
   description = "The gs:// URL of the private bucket"
-  value       = var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].url : google_storage_bucket.private[0].url
+  value       = google_storage_bucket.private.url
 }
 
 output "private_bucket_self_link" {
   description = "The self link of the private bucket"
-  value       = var.is_sub_hospital ? data.google_storage_bucket.parent_private[0].self_link : google_storage_bucket.private[0].self_link
+  value       = google_storage_bucket.private.self_link
 }
 
 output "public_bucket_name" {
   description = "The name of the public storage bucket"
-  value       = var.is_sub_hospital ? "" : google_storage_bucket.public[0].name
+  value       = google_storage_bucket.public.name
 }
 
 output "public_bucket_url" {
   description = "The gs:// URL of the public bucket"
-  value       = var.is_sub_hospital ? "" : google_storage_bucket.public[0].url
+  value       = google_storage_bucket.public.url
 }
 
 output "public_bucket_website_url" {
   description = "The HTTPS URL for the public bucket website"
-  value       = var.is_sub_hospital ? "" : "https://storage.googleapis.com/${google_storage_bucket.public[0].name}"
+  value       = "https://storage.googleapis.com/${google_storage_bucket.public.name}"
 }
 
 output "public_bucket_self_link" {
   description = "The self link of the public bucket"
-  value       = var.is_sub_hospital ? "" : google_storage_bucket.public[0].self_link
+  value       = google_storage_bucket.public.self_link
 }
 
 # ============================================================================
@@ -215,12 +215,12 @@ output "quick_reference" {
       note            = "Sub-hospital: Uses parent instance"
     }
     storage = {
-      private_bucket = data.google_storage_bucket.parent_private[0].name
-      public_bucket  = "N/A (uses parent)"
+      private_bucket = google_storage_bucket.private.name
+      public_bucket  = google_storage_bucket.public.name
     }
     secret_manager = {
-      secret_name = "N/A (uses parent secret)"
-      command     = "Retrieve from parent hospital secret"
+      secret_name = google_secret_manager_secret.db_uri.secret_id
+      command     = "gcloud secrets versions access latest --secret=${google_secret_manager_secret.db_uri.secret_id}"
     }
     } : {
     database = {
@@ -231,12 +231,12 @@ output "quick_reference" {
       connection_name = google_sql_database_instance.mysql[0].connection_name
     }
     storage = {
-      private_bucket = google_storage_bucket.private[0].name
-      public_bucket  = google_storage_bucket.public[0].name
+      private_bucket = google_storage_bucket.private.name
+      public_bucket  = google_storage_bucket.public.name
     }
     secret_manager = {
-      secret_name = google_secret_manager_secret.db_uri[0].secret_id
-      command     = "gcloud secrets versions access latest --secret=${google_secret_manager_secret.db_uri[0].secret_id}"
+      secret_name = google_secret_manager_secret.db_uri.secret_id
+      command     = "gcloud secrets versions access latest --secret=${google_secret_manager_secret.db_uri.secret_id}"
     }
   }
 }

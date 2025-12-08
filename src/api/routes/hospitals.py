@@ -3,11 +3,14 @@ from sqlalchemy.orm import Session
 from src.core.database import get_db, ClientStatusEnum
 from src.core.client_service import ClientService
 from src.core.background_tasks import task_manager
+from src.core.services.db_main import MainHospitalDBService
+from src.config.settings import settings
 from src.models.models import ClientRegistrationRequest, ClientRegistrationResponse, ClientStatusResponse
 from src.api.middleware.auth import verify_api_key
 
 router = APIRouter(prefix="/api/hospitals", tags=["Hospitals"], dependencies=[Depends(verify_api_key)])
 client_service = ClientService()
+db_service = MainHospitalDBService()
 
 
 @router.post("/register", response_model=ClientRegistrationResponse, status_code=status.HTTP_201_CREATED)

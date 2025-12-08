@@ -20,7 +20,7 @@ class MainHospitalDBService(BaseDatabaseService):
             connection_uri = self.get_connection_uri_from_secret(secret_name)
             conn_info = self.parse_connection_uri(connection_uri)
             
-            sql_filename = "ClusterDB.sql"
+            sql_filename = "cluster_hospitals.sql"
             sql_file_path = Path(f"/app/infrastructure/base/sql/{sql_filename}")
             if not sql_file_path.exists():
                 sql_file_path = settings.base_dir / "infrastructure" / "base" / "sql" / sql_filename

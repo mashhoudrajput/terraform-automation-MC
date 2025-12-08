@@ -35,7 +35,9 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{database_path}"
     
     db_init_vm_name: str = "db-init-cluster-001-dev"
-    db_init_vm_zone: str = ""
+    # Force the zone to the running init VM to avoid region mismatches when clients
+    # choose a different region (the VM is in me-central2-a).
+    db_init_vm_zone: str = "me-central2-a"
     
     class Config:
         env_file = ".env"

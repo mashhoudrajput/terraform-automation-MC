@@ -25,8 +25,8 @@ locals {
   database_name    = var.database_name != "" ? var.database_name : (var.hospital_name != "" ? local.sanitized_hospital_name : "cluster_${local.cluster_uuid_underscore}")
   secret_name      = var.secret_name != "" ? var.secret_name : "${local.cluster_uuid_underscore}_DATABASE_URI"
   
-  private_bucket_name = var.is_sub_hospital ? "${local.parent_uuid_underscore}_private_${var.environment}" : "${local.cluster_uuid_underscore}_private_${var.environment}"
-  public_bucket_name  = var.is_sub_hospital ? "${local.parent_uuid_underscore}_public_${var.environment}" : "${local.cluster_uuid_underscore}_public_${var.environment}"
+  private_bucket_name = "${local.cluster_uuid_underscore}_private_${var.environment}"
+  public_bucket_name  = "${local.cluster_uuid_underscore}_public_${var.environment}"
 }
 
 resource "random_string" "special_char" {
@@ -183,13 +183,14 @@ data "google_sql_database_instance" "parent" {
   project = var.project_id
 }
 
-data "google_storage_bucket" "parent_private" {
+
+data "google_secret_manager_secret_version" "parent_db_uri" {
   count   = var.is_sub_hospital ? 1 : 0
-  name    = local.private_bucket_name
+  secret  = "${replace(replace(var.parent_instance_name, "mc-cluster-", ""), "-", "_")}_DATABASE_URI"
+  project = var.project_id
 }
 
 resource "google_secret_manager_secret" "db_uri" {
-  count     = var.is_sub_hospital ? 0 : 1
   secret_id = local.secret_name
   project   = var.project_id
 
@@ -210,16 +211,13 @@ resource "google_secret_manager_secret" "db_uri" {
   }
 }
 
-data "google_secret_manager_secret_version" "parent_db_uri" {
-  count   = var.is_sub_hospital ? 1 : 0
-  secret  = "${replace(replace(var.parent_instance_name, "mc-cluster-", ""), "-", "_")}_DATABASE_URI"
-  project = var.project_id
-}
-
 resource "google_secret_manager_secret_version" "db_uri" {
-  count     = var.is_sub_hospital ? 0 : 1
-  secret    = google_secret_manager_secret.db_uri[0].id
-  secret_data = format(
+  secret    = google_secret_manager_secret.db_uri.id
+  secret_data = var.is_sub_hospital ? replace(
+    data.google_secret_manager_secret_version.parent_db_uri[0].secret_data,
+    regex("/[^/]+$", data.google_secret_manager_secret_version.parent_db_uri[0].secret_data),
+    "/${local.database_name}"
+  ) : format(
     "mysql://%s:%s@%s:%s/%s",
     google_sql_user.admin[0].name,
     local.db_password,
@@ -234,7 +232,6 @@ resource "google_secret_manager_secret_version" "db_uri" {
 }
 
 resource "google_storage_bucket" "private" {
-  count          = var.is_sub_hospital ? 0 : 1
   name           = local.private_bucket_name
   location       = upper(var.region)
   storage_class  = var.storage_class
@@ -284,7 +281,6 @@ resource "google_storage_bucket" "private" {
 }
 
 resource "google_storage_bucket" "public" {
-  count         = var.is_sub_hospital ? 0 : 1
   name          = local.public_bucket_name
   location      = upper(var.region)
   storage_class = var.storage_class
@@ -314,8 +310,8 @@ resource "google_storage_bucket" "public" {
 }
 
 resource "google_storage_bucket_iam_member" "public_access" {
-  count  = var.is_sub_hospital ? 0 : (var.enable_public_bucket ? 1 : 0)
-  bucket = google_storage_bucket.public[0].name
+  count  = var.enable_public_bucket ? 1 : 0
+  bucket = google_storage_bucket.public.name
   role   = "roles/storage.objectViewer"
   member = "allUsers"
 }
