@@ -65,7 +65,7 @@ async def create_tables(hospital_uuid: str, db: Session = Depends(get_db)):
     client = client_service.get_client_by_uuid(db, hospital_uuid)
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Hospital not found: {hospital_uuid}")
-    
+
     if client.status != ClientStatusEnum.COMPLETED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -76,14 +76,38 @@ async def create_tables(hospital_uuid: str, db: Session = Depends(get_db)):
         region = client.region or settings.gcp_region
         terraform_outputs = client_service.parse_terraform_outputs(client.terraform_outputs)
         private_bucket_name = terraform_outputs.private_bucket_name if terraform_outputs else None
-        
-        if not private_bucket_name:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Private bucket name not found in outputs"
+        database_name = terraform_outputs.database_name if terraform_outputs else None
+
+        if client.parent_uuid:
+            # Route sub-hospital calls to the sub-hospital handler to ensure the correct schema is applied.
+            from src.core.services.db_sub import SubHospitalDBService
+
+            if not database_name:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Database name not found in outputs")
+            if not private_bucket_name:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Private bucket name not found in outputs")
+
+            parent_hospital = client_service.get_client_by_uuid(db, client.parent_uuid)
+            if not parent_hospital:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent hospital not found")
+            if parent_hospital.status != ClientStatusEnum.COMPLETED:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Parent hospital must be 'completed'. Current status: {parent_hospital.status.value}"
+                )
+
+            sub_db_service = SubHospitalDBService()
+            success, message = sub_db_service.create_tables(
+                hospital_uuid, client.parent_uuid, database_name, region, private_bucket_name
             )
-        
-        success, message = db_service.create_tables(hospital_uuid, region, private_bucket_name)
+        else:
+            if not private_bucket_name:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Private bucket name not found in outputs"
+                )
+
+            success, message = db_service.create_tables(hospital_uuid, region, private_bucket_name)
         
         if success:
             return {"message": "Tables created successfully", "hospital_uuid": hospital_uuid, "details": message}

@@ -101,7 +101,7 @@ class ClientStatusResponse(BaseModel):
                     "db_private_ip": "10.7.1.9",
                     "db_port": "3306",
                     "database_name": "myapp_db",
-                    "db_username": "dbadmin"
+                    "db_username": "root"
                 }
             }
         }

@@ -219,7 +219,7 @@ variable "database_name" {
 variable "db_user" {
   description = "MySQL database administrator username"
   type        = string
-  default     = "dbadmin"
+  default     = "root"
 
   validation {
     condition     = can(regex("^[a-zA-Z][a-zA-Z0-9_]{2,31}$", var.db_user))
@@ -228,7 +228,7 @@ variable "db_user" {
 }
 
 variable "db_password_length" {
-  description = "(DEPRECATED) Password now follows fixed format: medicalcircle<special><number>"
+  description = "(DEPRECATED) Password now generated as random 8-character base64 string."
   type        = number
   default     = 16
 

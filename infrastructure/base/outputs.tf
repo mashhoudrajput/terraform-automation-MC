@@ -82,7 +82,7 @@ output "db_username" {
 }
 
 output "db_password" {
-  description = "The auto-generated database password (format: medicalcircle<special><number>)"
+  description = "The auto-generated database password (random 8-character base64 string)"
   value       = var.is_sub_hospital ? "" : local.db_password
   sensitive   = true
 }

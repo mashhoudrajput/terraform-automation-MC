@@ -29,22 +29,8 @@ locals {
   public_bucket_name  = "${local.cluster_uuid_underscore}_public_${var.environment}"
 }
 
-resource "random_string" "special_char" {
-  length  = 1
-  special = true
-  upper   = false
-  lower   = false
-  numeric = false
-  override_special = "@#$%&*!-_"
-
-  lifecycle {
-    ignore_changes = all
-  }
-}
-
-resource "random_integer" "password_number" {
-  min = 1000
-  max = 9999
+resource "random_id" "db_password" {
+  byte_length = 8
 
   lifecycle {
     ignore_changes = all
@@ -52,7 +38,7 @@ resource "random_integer" "password_number" {
 }
 
 locals {
-  db_password = "medicalcircle${random_string.special_char.result}${random_integer.password_number.result}"
+  db_password = random_id.db_password.b64_std
 }
 
 data "google_compute_network" "default" {
