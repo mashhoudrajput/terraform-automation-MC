@@ -1,5 +1,8 @@
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Tuple
 from urllib.parse import urlparse, unquote
@@ -72,4 +75,62 @@ class BaseDatabaseService:
         """
         # Replace single quotes with: ' (end quote) + \' (escaped quote) + ' (start quote)
         return password.replace("'", "'\\''")
+
+    def generate_temp_ssh_key(self, env: dict) -> Tuple[Path, Path]:
+        """
+        Generate a temporary SSH key pair for this task only.
+        Returns (private_key_path, public_key_path).
+        """
+        tmp_dir = Path(tempfile.mkdtemp())
+        priv = tmp_dir / "task_key"
+        pub = tmp_dir / "task_key.pub"
+        subprocess.run(
+            ["ssh-keygen", "-t", "rsa", "-f", str(priv), "-N", "", "-q"],
+            check=True,
+            env=env,
+        )
+        return priv, pub
+
+    def cleanup_os_login_key(self, env: dict, key_path: Path) -> None:
+        """
+        Remove only the OS Login SSH key created for this task.
+        Safe to call even if the key does not exist or removal fails.
+        """
+        if not key_path:
+            return
+        try:
+            if key_path.exists():
+                subprocess.run(
+                    [
+                        "gcloud",
+                        "compute",
+                        "os-login",
+                        "ssh-keys",
+                        "remove",
+                        f"--key-file={key_path}",
+                        "--quiet",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                    env=env,
+                    check=False,
+                )
+        except Exception:
+            pass  # best-effort cleanup
+
+    def cleanup_local_key_files(self, priv: Path, pub: Path) -> None:
+        """
+        Remove temporary key files and their directory.
+        """
+        try:
+            if priv:
+                priv.unlink(missing_ok=True)
+            if pub:
+                pub.unlink(missing_ok=True)
+            # remove parent dir if empty
+            if pub and pub.parent.exists():
+                shutil.rmtree(pub.parent, ignore_errors=True)
+        except Exception:
+            pass
 

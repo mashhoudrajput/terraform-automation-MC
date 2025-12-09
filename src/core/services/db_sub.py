@@ -9,7 +9,11 @@ from src.config.settings import settings
 
 class SubHospitalDBService(BaseDatabaseService):
     def create_database(self, parent_uuid: str, sub_hospital_name: str, sub_hospital_uuid: str, private_bucket_name: str, region: str = None) -> Tuple[bool, str]:
+        env = os.environ.copy()
+        env['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/terraform-sa.json')
+        priv_key = pub_key = None
         try:
+            priv_key, pub_key = self.generate_temp_ssh_key(env)
             region = region or settings.gcp_region
             vm_zone = settings.db_init_vm_zone or f"{region}-a"
             
@@ -28,11 +32,9 @@ class SubHospitalDBService(BaseDatabaseService):
             mysql_command = f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
             ssh_command = f"echo '{mysql_command}' | mysql -h {conn_info['host']} -P {conn_info['port']} -u {conn_info['user']} -p'{escaped_password}' mysql 2>&1 && echo 'SUCCESS: Database {db_name} created' || echo 'ERROR: Database creation failed'"
             
-            env = os.environ.copy()
-            env['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/terraform-sa.json')
-            
             ssh_cmd = [
                 'gcloud', 'compute', 'ssh', settings.db_init_vm_name,
+                f'--ssh-key-file={priv_key}',
                 '--zone', vm_zone,
                 '--project', settings.gcp_project_id,
                 '--command', ssh_command,
@@ -54,9 +56,16 @@ class SubHospitalDBService(BaseDatabaseService):
             return False, "Database creation timed out after 2 minutes"
         except Exception as e:
             return False, f"Failed to create sub-hospital database: {str(e)}"
+        finally:
+            self.cleanup_os_login_key(env, pub_key)
+            self.cleanup_local_key_files(priv_key, pub_key)
     
     def create_tables(self, client_uuid: str, parent_uuid: str, database_name: str, region: str, private_bucket_name: str) -> Tuple[bool, str]:
+        env = os.environ.copy()
+        env['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/terraform-sa.json')
+        priv_key = pub_key = None
         try:
+            priv_key, pub_key = self.generate_temp_ssh_key(env)
             region = region or settings.gcp_region
             vm_zone = settings.db_init_vm_zone or f"{region}-a"
             
@@ -85,9 +94,6 @@ class SubHospitalDBService(BaseDatabaseService):
             escaped_password = self.escape_password_for_shell(conn_info['password'])
             script_content = self._generate_script(conn_info, escaped_password, gcs_path, client_uuid, sql_filename)
             
-            env = os.environ.copy()
-            env['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/terraform-sa.json')
-            
             with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as tmp_script:
                 tmp_script.write(script_content)
                 tmp_script_path = tmp_script.name
@@ -96,6 +102,7 @@ class SubHospitalDBService(BaseDatabaseService):
             try:
                 scp_cmd = [
                     'gcloud', 'compute', 'scp',
+                    f'--ssh-key-file={priv_key}',
                     tmp_script_path,
                     f'{settings.db_init_vm_name}:/tmp/create_tables_{client_uuid}.sh',
                     '--zone', vm_zone,
@@ -109,6 +116,7 @@ class SubHospitalDBService(BaseDatabaseService):
                 
                 ssh_cmd = [
                     'gcloud', 'compute', 'ssh', settings.db_init_vm_name,
+                    f'--ssh-key-file={priv_key}',
                     '--zone', vm_zone,
                     '--project', settings.gcp_project_id,
                     '--command', f'sudo bash /tmp/create_tables_{client_uuid}.sh'
@@ -130,6 +138,9 @@ class SubHospitalDBService(BaseDatabaseService):
             return False, "Table creation timed out after 10 minutes"
         except Exception as e:
             return False, f"Failed to create tables: {str(e)}"
+        finally:
+            self.cleanup_os_login_key(env, pub_key)
+            self.cleanup_local_key_files(priv_key, pub_key)
     
     def _generate_script(self, conn_info: dict, escaped_password: str, gcs_path: str, client_uuid: str, sql_filename: str) -> str:
         return f"""#!/bin/bash
