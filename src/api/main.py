@@ -41,16 +41,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-try:
-    frontend_path = Path("/app/frontend")
-    if frontend_path.exists():
-        app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
-        
-        @app.get("/", tags=["Frontend"], include_in_schema=False)
-        async def serve_frontend():
-            return FileResponse(str(frontend_path / "index.html"))
-except Exception:
-    pass
+if settings.serve_frontend:
+    try:
+        frontend_path = Path("/app/frontend")
+        if frontend_path.exists():
+            app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+            
+            @app.get("/", tags=["Frontend"], include_in_schema=False)
+            async def serve_frontend():
+                return FileResponse(str(frontend_path / "index.html"))
+    except Exception:
+        pass
+
+# Simple root response for backend-only mode
+@app.get("/", tags=["Root"], include_in_schema=False)
+async def root():
+    return {"message": "Backend service running"}
 
 app.include_router(hospitals.router)
 app.include_router(sub_hospitals.router)

@@ -83,12 +83,12 @@
     </div>
 
     <script>
-        // Use the current origin so the UI works on Cloud Run/https
-        const API_BASE = window.location.origin;
+        // Cloud Run backend URL
+        const API_BASE = 'https://terrafrom-automation-677473027585.me-central2.run.app';
         const statusPolls = new Map();
 
         function getApiKey() {
-            return document.getElementById('apiKey').value.trim() || 'default-api-key-change-me';
+            return document.getElementById('apiKey').value.trim() || 'sk_WUzXdXL9uOSlpoCDrBhouJPHpYtd74Gz';
         }
 
         function getHeaders() {
