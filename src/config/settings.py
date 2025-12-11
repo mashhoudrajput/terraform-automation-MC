@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     state_bucket_name: str = "medical-circles-terraform-state-files"
     
     database_url: str = f"sqlite:///{database_path}"
+    database_backup_bucket: Optional[str] = "medical-circles-terraform-state-files"
+    database_backup_object: str = "clients.db"
+    database_backup_interval_seconds: int = 300
     
     db_init_vm_name: str = "db-init-cluster-001-dev"
     # Force the zone to the running init VM to avoid region mismatches when clients

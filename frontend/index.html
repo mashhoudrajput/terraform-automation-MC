@@ -83,7 +83,8 @@
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8000';
+        // Use the current origin so the UI works on Cloud Run/https
+        const API_BASE = window.location.origin;
         const statusPolls = new Map();
 
         function getApiKey() {

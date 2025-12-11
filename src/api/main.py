@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from src.config.settings import settings
 from src.core.database import init_db
+from src.core.db_backup import download_db_snapshot, start_periodic_backup, stop_periodic_backup
 from src.api.routes import hospitals, sub_hospitals, common
 
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -15,8 +16,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Restore database snapshot (if configured) before initializing tables.
+    download_db_snapshot()
     init_db()
-    yield
+    start_periodic_backup()
+    try:
+        yield
+    finally:
+        stop_periodic_backup(run_final_upload=True)
 
 
 app = FastAPI(

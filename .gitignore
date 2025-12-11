@@ -52,6 +52,7 @@ terraform-sa.json
 # Deployment workspaces (old test directories - should be removed)
 terraform_deployments/
 deployments/
+frontend/
 
 # Data directory (runtime only)
 data/
