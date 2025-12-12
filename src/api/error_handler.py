@@ -1,41 +1,24 @@
-"""
-Error handling utilities for API
-"""
-
 def enhance_terraform_error(error_message: str) -> str:
-    """
-    Enhance Terraform error messages with helpful solutions.
-    
-    Args:
-        error_message: Original error message from Terraform
-        
-    Returns:
-        Enhanced error message with solution guidance
-    """
     enhancements = {
         "secretmanager.versions.access": (
             "\n\nSOLUTION: Grant Secret Manager Admin role to service account.\n"
             "Command: gcloud projects add-iam-policy-binding PROJECT_ID "
-            "--member='serviceAccount:SA_EMAIL' --role='roles/secretmanager.admin'\n"
-            "See: infrastructure/base/PERMISSIONS.txt"
+            "--member='serviceAccount:SA_EMAIL' --role='roles/secretmanager.admin'"
         ),
         "cloudsql.instances.create": (
             "\n\nSOLUTION: Grant Cloud SQL Admin role to service account.\n"
             "Command: gcloud projects add-iam-policy-binding PROJECT_ID "
-            "--member='serviceAccount:SA_EMAIL' --role='roles/cloudsql.admin'\n"
-            "See: infrastructure/base/PERMISSIONS.txt"
+            "--member='serviceAccount:SA_EMAIL' --role='roles/cloudsql.admin'"
         ),
         "storage.buckets.create": (
             "\n\nSOLUTION: Grant Storage Admin role to service account.\n"
             "Command: gcloud projects add-iam-policy-binding PROJECT_ID "
-            "--member='serviceAccount:SA_EMAIL' --role='roles/storage.admin'\n"
-            "See: infrastructure/base/PERMISSIONS.txt"
+            "--member='serviceAccount:SA_EMAIL' --role='roles/storage.admin'"
         ),
         "compute.firewalls.create": (
             "\n\nSOLUTION: Grant Compute Network Admin role to service account.\n"
             "Command: gcloud projects add-iam-policy-binding PROJECT_ID "
-            "--member='serviceAccount:SA_EMAIL' --role='roles/compute.networkAdmin'\n"
-            "See: infrastructure/base/PERMISSIONS.txt"
+            "--member='serviceAccount:SA_EMAIL' --role='roles/compute.networkAdmin'"
         ),
         "already exists": (
             "\n\nSOLUTION: Resource already exists from previous deployment.\n"
@@ -43,7 +26,7 @@ def enhance_terraform_error(error_message: str) -> str:
         ),
         "Permission denied": (
             "\n\nSOLUTION: Service account lacks required GCP permissions.\n"
-            "See: infrastructure/base/PERMISSIONS.txt for complete list."
+            "Check service account roles and permissions."
         )
     }
     
@@ -55,4 +38,3 @@ def enhance_terraform_error(error_message: str) -> str:
             break
     
     return enhanced_message
-

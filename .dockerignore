@@ -1,9 +1,6 @@
-# Git
 .git/
 .gitignore
 .gitattributes
-
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -18,8 +15,6 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Terraform
 .terraform/
 *.tfstate
 *.tfstate.*
@@ -27,52 +22,29 @@ htmlcov/
 .terraform.lock.hcl
 terraform.tfvars
 backend.tf
-!backend.tf.template
-
-# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *.sublime-*
-
-# Logs
 *.log
 apply.log
 destroy.log
-
-# Database (runtime)
 *.db
 *.db-journal
 *.sqlite
 *.sqlite3
-
-# Data directory (runtime only)
 data/
 terraform_deployments/
 deployments/
-
-# Documentation
 README.md
 *.md
-!README.md
-
-# OS
 .DS_Store
 Thumbs.db
-
-# Backups
 *.backup
 *.bak
-
-# Credentials (keep these - they're copied explicitly)
-# terraform-sa.json - NOT ignored (needed in image)
-# .env - NOT ignored (needed in image)
-
-# Frontend (not used in backend-only image)
 frontend/
-
-# Example files (not needed in image)
 *.example
 env.example
 frontend.env.example
+.dockerignore

@@ -12,6 +12,12 @@
 # PROJECT CONFIGURATION
 # ============================================================================
 
+variable "credentials_path" {
+  description = "Path to GCP service account credentials JSON file (optional - if not provided, uses default credentials)"
+  type        = string
+  default     = null
+}
+
 variable "project_id" {
   description = "The GCP project ID where resources will be created"
   type        = string

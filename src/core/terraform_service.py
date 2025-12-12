@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -6,6 +7,8 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
 from src.config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 class TerraformService:
@@ -35,6 +38,9 @@ class TerraformService:
         
         if credentials_src.exists():
             shutil.copy2(credentials_src, workspace_path / settings.gcp_credentials_file)
+            logger.info(f"Copied credentials file to workspace: {workspace_path / settings.gcp_credentials_file}")
+        else:
+            logger.info("No credentials file found. Using default credentials (Cloud Run service account)")
         
         self.generate_tfvars(workspace_path, client_uuid, client_info)
         self.generate_backend_config(workspace_path, client_uuid)
@@ -51,6 +57,11 @@ class TerraformService:
             parent_uuid = client_info.get('parent_uuid')
             parent_instance_name = f"mc-cluster-{parent_uuid.replace('_', '-')}"
         
+        credentials_file = workspace_path / settings.gcp_credentials_file
+        credentials_line = ""
+        if credentials_file.exists():
+            credentials_line = f'credentials_path = "{settings.gcp_credentials_file}"\n'
+        
         tfvars_content = f"""project_id   = "{settings.gcp_project_id}"
 region       = "{client_info.get('region', settings.gcp_region)}"
 environment  = "{environment}"
@@ -59,7 +70,7 @@ created_date = "{current_date}"
 is_sub_hospital = {str(is_sub_hospital).lower()}
 parent_instance_name = "{parent_instance_name}"
 hospital_name = "{hospital_name}"
-"""
+{credentials_line}"""
         tfvars_path = workspace_path / "terraform.tfvars"
         tfvars_path.write_text(tfvars_content)
     
@@ -75,83 +86,97 @@ hospital_name = "{hospital_name}"
         backend_path = workspace_path / "backend.tf"
         backend_path.write_text(backend_content)
     
-    def run_terraform_init(self, workspace_path: Path) -> Tuple[bool, str]:
+    def _setup_credentials(self, workspace_path: Path) -> Tuple[bool, Optional[Path], Optional[str]]:
         credentials_file = workspace_path / settings.gcp_credentials_file
-        if not credentials_file.exists():
-            credentials_src = Path("/app") / settings.gcp_credentials_file
-            if not credentials_src.exists():
-                credentials_src = settings.base_dir / settings.gcp_credentials_file
-            if credentials_src.exists():
-                shutil.copy2(credentials_src, credentials_file)
-            else:
-                return False, f"GCP credentials file not found: {settings.gcp_credentials_file}"
+        
+        if credentials_file.exists():
+            logger.info(f"Using credentials file from workspace: {credentials_file}")
+            return True, credentials_file, None
+        
+        credentials_src = Path("/app") / settings.gcp_credentials_file
+        if not credentials_src.exists():
+            credentials_src = settings.base_dir / settings.gcp_credentials_file
+        
+        if credentials_src.exists():
+            shutil.copy2(credentials_src, credentials_file)
+            logger.info(f"Using credentials file: {credentials_file}")
+            return True, credentials_file, None
+        else:
+            logger.info("No credentials file found. Using default credentials (Cloud Run service account)")
+            return True, None, None
+    
+    def _run_terraform_command(
+        self,
+        workspace_path: Path,
+        command: str,
+        log_file: str,
+        timeout: int
+    ) -> Tuple[bool, str]:
+        success, credentials_file, error = self._setup_credentials(workspace_path)
+        if not success:
+            return False, error or "Failed to setup credentials"
         
         env = os.environ.copy()
-        env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
+        if credentials_file:
+            env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
+        
+        logger.info(f"Running terraform {command} for workspace: {workspace_path}")
         
         try:
             result = subprocess.run(
-                [self.terraform_binary, "init", "-no-color", "-upgrade"],
+                [self.terraform_binary, command, "-auto-approve", "-no-color"] if command in ["apply", "destroy"] else [self.terraform_binary, command, "-no-color", "-upgrade"] if command == "init" else [self.terraform_binary, command, "-json"],
                 cwd=workspace_path,
                 capture_output=True,
                 text=True,
-                timeout=settings.terraform_init_timeout,
+                timeout=timeout,
                 env=env
             )
-            log_path = workspace_path / "init.log"
+            
+            log_path = workspace_path / log_file
             log_path.write_text(result.stdout + "\n" + result.stderr)
             
             if result.returncode == 0:
+                logger.info(f"Terraform {command} completed successfully")
                 return True, result.stdout
             else:
-                return False, result.stderr or result.stdout
+                error_msg = result.stderr or result.stdout
+                logger.error(f"Terraform {command} failed: {error_msg[:500]}")
+                return False, error_msg
         except subprocess.TimeoutExpired:
-            return False, f"Terraform init timed out after {settings.terraform_init_timeout} seconds"
+            error_msg = f"Terraform {command} timed out after {timeout} seconds"
+            logger.error(error_msg)
+            return False, error_msg
         except Exception as e:
-            return False, f"Error running terraform init: {str(e)}"
+            error_msg = f"Error running terraform {command}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return False, error_msg
+    
+    def run_terraform_init(self, workspace_path: Path) -> Tuple[bool, str]:
+        return self._run_terraform_command(
+            workspace_path,
+            "init",
+            "init.log",
+            settings.terraform_init_timeout
+        )
     
     def run_terraform_apply(self, workspace_path: Path) -> Tuple[bool, str]:
-        credentials_file = workspace_path / settings.gcp_credentials_file
-        if not credentials_file.exists():
-            credentials_src = Path("/app") / settings.gcp_credentials_file
-            if not credentials_src.exists():
-                credentials_src = settings.base_dir / settings.gcp_credentials_file
-            if credentials_src.exists():
-                shutil.copy2(credentials_src, credentials_file)
-            else:
-                return False, f"GCP credentials file not found: {settings.gcp_credentials_file}"
-        
-        env = os.environ.copy()
-        env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
-        
-        try:
-            result = subprocess.run(
-                [self.terraform_binary, "apply", "-auto-approve", "-no-color"],
-                cwd=workspace_path,
-                capture_output=True,
-                text=True,
-                timeout=settings.terraform_apply_timeout,
-                env=env
-            )
-            log_path = workspace_path / "apply.log"
-            log_path.write_text(result.stdout + "\n" + result.stderr)
-            
-            if result.returncode == 0:
-                return True, result.stdout
-            else:
-                return False, result.stderr
-        except subprocess.TimeoutExpired:
-            return False, f"Terraform apply timed out after {settings.terraform_apply_timeout} seconds"
-        except Exception as e:
-            return False, f"Error running terraform apply: {str(e)}"
+        return self._run_terraform_command(
+            workspace_path,
+            "apply",
+            "apply.log",
+            settings.terraform_apply_timeout
+        )
     
     def get_terraform_outputs(self, workspace_path: Path) -> Optional[Dict[str, Any]]:
-        credentials_file = workspace_path / settings.gcp_credentials_file
-        if credentials_file.exists():
-            env = os.environ.copy()
+        success, credentials_file, _ = self._setup_credentials(workspace_path)
+        if not success:
+            return None
+        
+        env = os.environ.copy()
+        if credentials_file:
             env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
-        else:
-            env = os.environ.copy()
+        
+        logger.info(f"Retrieving terraform outputs from workspace: {workspace_path}")
         
         try:
             result = subprocess.run(
@@ -170,26 +195,36 @@ hospital_name = "{hospital_name}"
                         outputs[key] = value['value']
                     else:
                         outputs[key] = value
+                logger.info(f"Successfully retrieved {len(outputs)} terraform outputs")
                 return outputs
             else:
+                logger.error(f"Failed to retrieve terraform outputs: {result.stderr}")
                 return None
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error retrieving terraform outputs: {str(e)}", exc_info=True)
             return None
     
     def run_full_deployment(self, client_uuid: str, client_info: Dict[str, Any]) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
         try:
+            logger.info(f"Starting full deployment for client: {client_uuid}")
             workspace_path = self.create_client_workspace(client_uuid, client_info)
+            
             success, output = self.run_terraform_init(workspace_path)
             if not success:
                 return False, None, f"Terraform init failed: {output}"
+            
             success, output = self.run_terraform_apply(workspace_path)
             if not success:
                 return False, None, f"Terraform apply failed: {output}"
+            
             outputs = self.get_terraform_outputs(workspace_path)
             if outputs is None:
                 return False, None, "Failed to retrieve Terraform outputs"
+            
+            logger.info(f"Deployment completed successfully for client: {client_uuid}")
             return True, outputs, None
         except Exception as e:
+            logger.error(f"Deployment failed for client {client_uuid}: {str(e)}", exc_info=True)
             return False, None, f"Deployment failed: {str(e)}"
     
     def workspace_exists(self, client_uuid: str) -> bool:
@@ -203,46 +238,23 @@ hospital_name = "{hospital_name}"
         if not workspace_path.exists():
             return False, "Workspace not found"
         
-        credentials_file = workspace_path / settings.gcp_credentials_file
-        if not credentials_file.exists():
-            credentials_src = Path("/app") / settings.gcp_credentials_file
-            if not credentials_src.exists():
-                credentials_src = settings.base_dir / settings.gcp_credentials_file
-            if credentials_src.exists():
-                shutil.copy2(credentials_src, credentials_file)
-            else:
-                return False, f"GCP credentials file not found: {settings.gcp_credentials_file}"
-        
-        env = os.environ.copy()
-        env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
-        
-        try:
-            result = subprocess.run(
-                [self.terraform_binary, "destroy", "-auto-approve", "-no-color"],
-                cwd=workspace_path,
-                capture_output=True,
-                text=True,
-                timeout=settings.terraform_apply_timeout,
-                env=env
-            )
-            log_path = workspace_path / "destroy.log"
-            log_path.write_text(result.stdout + "\n" + result.stderr)
-            
-            if result.returncode == 0:
-                return True, result.stdout
-            else:
-                return False, result.stderr
-        except subprocess.TimeoutExpired:
-            return False, f"Terraform destroy timed out after {settings.terraform_apply_timeout} seconds"
-        except Exception as e:
-            return False, f"Error running terraform destroy: {str(e)}"
+        return self._run_terraform_command(
+            workspace_path,
+            "destroy",
+            "destroy.log",
+            settings.terraform_apply_timeout
+        )
     
     def destroy_client_infrastructure(self, client_uuid: str) -> Tuple[bool, Optional[str]]:
         workspace_path = self.get_workspace_path(client_uuid)
         if not workspace_path.exists():
             return True, None
+        
+        logger.info(f"Destroying infrastructure for client: {client_uuid}")
         success, output = self.run_terraform_destroy(workspace_path)
         if success:
+            logger.info(f"Infrastructure destroyed successfully for client: {client_uuid}")
             return True, None
         else:
+            logger.error(f"Infrastructure destruction failed for client {client_uuid}: {output}")
             return False, f"Terraform destroy failed: {output}"

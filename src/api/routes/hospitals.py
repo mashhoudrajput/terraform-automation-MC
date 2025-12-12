@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.core.database import get_db, ClientStatusEnum
@@ -7,6 +8,8 @@ from src.core.services.db_main import MainHospitalDBService
 from src.config.settings import settings
 from src.models.models import ClientRegistrationRequest, ClientRegistrationResponse, ClientStatusResponse
 from src.api.middleware.auth import verify_api_key
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/hospitals", tags=["Hospitals"], dependencies=[Depends(verify_api_key)])
 client_service = ClientService()
@@ -27,6 +30,7 @@ async def register_hospital(request: ClientRegistrationRequest, db: Session = De
         }
         
         task_manager.deploy_hospital(client.uuid, client_info)
+        logger.info(f"Registered hospital: {client.uuid} ({client.client_name})")
         
         return ClientRegistrationResponse(
             client_uuid=client.uuid,
@@ -36,6 +40,7 @@ async def register_hospital(request: ClientRegistrationRequest, db: Session = De
             created_at=client.created_at
         )
     except Exception as e:
+        logger.error(f"Failed to register hospital: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to register hospital: {str(e)}")
 
 
@@ -43,6 +48,7 @@ async def register_hospital(request: ClientRegistrationRequest, db: Session = De
 async def get_hospital_status(hospital_uuid: str, db: Session = Depends(get_db)):
     client = client_service.get_client_by_uuid(db, hospital_uuid)
     if not client:
+        logger.warning(f"Hospital not found: {hospital_uuid}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Hospital not found: {hospital_uuid}")
     
     terraform_outputs = client_service.parse_terraform_outputs(client.terraform_outputs)
@@ -79,7 +85,6 @@ async def create_tables(hospital_uuid: str, db: Session = Depends(get_db)):
         database_name = terraform_outputs.database_name if terraform_outputs else None
 
         if client.parent_uuid:
-            # Route sub-hospital calls to the sub-hospital handler to ensure the correct schema is applied.
             from src.core.services.db_sub import SubHospitalDBService
 
             if not database_name:
@@ -110,11 +115,12 @@ async def create_tables(hospital_uuid: str, db: Session = Depends(get_db)):
             success, message = db_service.create_tables(hospital_uuid, region, private_bucket_name)
         
         if success:
+            logger.info(f"Created tables for hospital: {hospital_uuid}")
             return {"message": "Tables created successfully", "hospital_uuid": hospital_uuid, "details": message}
         else:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create tables: {message}")
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Error creating tables for hospital {hospital_uuid}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating tables: {str(e)}")
-
