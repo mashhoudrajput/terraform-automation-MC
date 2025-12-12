@@ -58,9 +58,6 @@ frontend/
 data/
 !data/.gitkeep
 
-# Docker
-.dockerignore
-
 # OS
 .DS_Store
 Thumbs.db

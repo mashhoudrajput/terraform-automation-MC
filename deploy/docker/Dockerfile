@@ -55,8 +55,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 WORKDIR /app
 COPY src/ ./src/
 COPY infrastructure/ ./infrastructure/
-# Frontend not served in backend-only deployments; omit if not needed
-# COPY frontend/ ./frontend/
+COPY .env /app/.env
+
 COPY deploy/docker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh && mkdir -p /data
