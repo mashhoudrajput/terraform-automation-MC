@@ -1,4 +1,3 @@
-import logging
 import threading
 from typing import Dict, Any
 from src.core.database import SessionLocal, ClientStatusEnum
@@ -7,8 +6,8 @@ from src.core.terraform_service import TerraformService
 from src.core.services.db_main import MainHospitalDBService
 from src.core.services.db_sub import SubHospitalDBService
 from src.api.error_handler import enhance_terraform_error
-
-logger = logging.getLogger(__name__)
+from src.config.settings import settings
+import re
 
 
 class BackgroundTaskManager:
@@ -24,56 +23,37 @@ class BackgroundTaskManager:
                     cls._instance._threads = {}
         return cls._instance
     
-    def _handle_deployment_result(
-        self,
-        db,
-        client_uuid: str,
-        success: bool,
-        outputs: Dict[str, Any] = None,
-        error_message: str = None
-    ):
-        client_service = ClientService()
-        try:
-            if success:
-                client_service.update_client_outputs(db, client_uuid, outputs)
-                client_service.update_client_status(db, client_uuid, ClientStatusEnum.COMPLETED)
-                logger.info(f"Deployment completed successfully for client: {client_uuid}")
-            else:
-                enhanced_error = enhance_terraform_error(error_message)
-                client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, enhanced_error)
-                logger.error(f"Deployment failed for client {client_uuid}: {enhanced_error}")
-        except Exception as e:
-            logger.error(f"Failed to update client status for {client_uuid}: {e}", exc_info=True)
-    
-    def _cleanup_task(self, client_uuid: str):
-        with self._lock:
-            if client_uuid in self._threads:
-                del self._threads[client_uuid]
-            if client_uuid in self._tasks:
-                del self._tasks[client_uuid]
-    
     def deploy_hospital(self, client_uuid: str, client_info: Dict[str, Any]):
         def task():
             db = SessionLocal()
             try:
                 client_service = ClientService()
                 terraform_service = TerraformService()
+                db_service = MainHospitalDBService()
                 
-                logger.info(f"Starting hospital deployment for client: {client_uuid}")
                 client_service.update_client_status(db, client_uuid, ClientStatusEnum.IN_PROGRESS)
                 
                 success, outputs, error_message = terraform_service.run_full_deployment(client_uuid, client_info)
-                self._handle_deployment_result(db, client_uuid, success, outputs, error_message)
+                
+                if success:
+                    client_service.update_client_outputs(db, client_uuid, outputs)
+                    client_service.update_client_status(db, client_uuid, ClientStatusEnum.COMPLETED)
+                else:
+                    enhanced_error = enhance_terraform_error(error_message)
+                    client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, enhanced_error)
             except Exception as e:
-                logger.error(f"Unexpected error during hospital deployment for {client_uuid}: {e}", exc_info=True)
                 try:
                     client_service = ClientService()
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, str(e))
-                except Exception:
+                except:
                     pass
             finally:
                 db.close()
-                self._cleanup_task(client_uuid)
+                with self._lock:
+                    if client_uuid in self._threads:
+                        del self._threads[client_uuid]
+                    if client_uuid in self._tasks:
+                        del self._tasks[client_uuid]
         
         thread = threading.Thread(target=task, daemon=True)
         thread.start()
@@ -89,34 +69,41 @@ class BackgroundTaskManager:
                 client_service = ClientService()
                 terraform_service = TerraformService()
                 
-                logger.info(f"Starting sub-hospital deployment for client: {client_uuid}, parent: {parent_uuid}")
                 client_service.update_client_status(db, client_uuid, ClientStatusEnum.IN_PROGRESS)
                 
                 parent_hospital = client_service.get_client_by_uuid(db, parent_uuid)
                 if not parent_hospital:
-                    error_msg = "Parent hospital not found"
-                    logger.error(f"{error_msg}: {parent_uuid}")
-                    client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, error_msg)
+                    client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, "Parent hospital not found")
                     return
                 
                 if parent_hospital.status != ClientStatusEnum.COMPLETED:
-                    error_msg = "Parent hospital deployment not completed"
-                    logger.error(f"{error_msg}: {parent_uuid}")
-                    client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, error_msg)
+                    client_service.update_client_status(
+                        db, client_uuid, ClientStatusEnum.FAILED,
+                        "Parent hospital deployment not completed"
+                    )
                     return
                 
                 success, outputs, error_message = terraform_service.run_full_deployment(client_uuid, client_info)
-                self._handle_deployment_result(db, client_uuid, success, outputs, error_message)
+                
+                if success:
+                    client_service.update_client_outputs(db, client_uuid, outputs)
+                    client_service.update_client_status(db, client_uuid, ClientStatusEnum.COMPLETED)
+                else:
+                    enhanced_error = enhance_terraform_error(error_message)
+                    client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, enhanced_error)
             except Exception as e:
-                logger.error(f"Unexpected error during sub-hospital deployment for {client_uuid}: {e}", exc_info=True)
                 try:
                     client_service = ClientService()
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, str(e))
-                except Exception:
+                except:
                     pass
             finally:
                 db.close()
-                self._cleanup_task(client_uuid)
+                with self._lock:
+                    if client_uuid in self._threads:
+                        del self._threads[client_uuid]
+                    if client_uuid in self._tasks:
+                        del self._tasks[client_uuid]
         
         thread = threading.Thread(target=task, daemon=True)
         thread.start()

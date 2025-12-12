@@ -10,24 +10,35 @@ from src.core.database import init_db
 from src.core.db_backup import download_db_snapshot, start_periodic_backup, stop_periodic_backup
 from src.api.routes import hospitals, sub_hospitals, common
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting application lifecycle")
-    download_db_snapshot()
+    # Restore database snapshot (if configured) before initializing tables.
+    # Run with timeout to prevent blocking startup
+    import threading
+    download_complete = threading.Event()
+    
+    def download_with_timeout():
+        try:
+            download_db_snapshot()
+        except Exception as e:
+            logger.warning(f"Database download failed: {e}. Starting with empty database.")
+        finally:
+            download_complete.set()
+    
+    download_thread = threading.Thread(target=download_with_timeout, daemon=True)
+    download_thread.start()
+    # Wait max 10 seconds for download, then continue
+    download_complete.wait(timeout=10)
+    
     init_db()
     start_periodic_backup()
     try:
         yield
     finally:
-        logger.info("Shutting down application")
         stop_periodic_backup(run_final_upload=True)
 
 
@@ -51,12 +62,14 @@ if settings.serve_frontend:
         frontend_path = Path("/app/frontend")
         if frontend_path.exists():
             app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+            
             @app.get("/", tags=["Frontend"], include_in_schema=False)
             async def serve_frontend():
                 return FileResponse(str(frontend_path / "index.html"))
-    except Exception as e:
-        logger.warning(f"Failed to mount frontend: {e}")
+    except Exception:
+        pass
 
+# Simple root response for backend-only mode
 @app.get("/", tags=["Root"], include_in_schema=False)
 async def root():
     return {"message": "Backend service running"}

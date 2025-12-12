@@ -1,4 +1,3 @@
-import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.core.database import get_db, ClientStatusEnum
@@ -6,8 +5,6 @@ from src.core.client_service import ClientService
 from src.core.background_tasks import task_manager
 from src.models.models import ClientRegistrationRequest, ClientRegistrationResponse
 from src.api.middleware.auth import verify_api_key
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/hospitals", tags=["Hospitals"], dependencies=[Depends(verify_api_key)])
 client_service = ClientService()
@@ -17,7 +14,6 @@ client_service = ClientService()
 async def register_sub_hospital(parent_uuid: str, request: ClientRegistrationRequest, db: Session = Depends(get_db)):
     parent_hospital = client_service.get_client_by_uuid(db, parent_uuid)
     if not parent_hospital:
-        logger.warning(f"Parent hospital not found: {parent_uuid}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Parent hospital not found: {parent_uuid}")
     
     if parent_hospital.status != ClientStatusEnum.COMPLETED:
@@ -40,7 +36,6 @@ async def register_sub_hospital(parent_uuid: str, request: ClientRegistrationReq
         }
         
         task_manager.deploy_sub_hospital(client.uuid, parent_uuid, client_info)
-        logger.info(f"Registered sub-hospital: {client.uuid} ({client.client_name}) under parent: {parent_uuid}")
         
         return ClientRegistrationResponse(
             client_uuid=client.uuid,
@@ -52,7 +47,6 @@ async def register_sub_hospital(parent_uuid: str, request: ClientRegistrationReq
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to register sub-hospital: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to register sub-hospital: {str(e)}")
 
 
@@ -95,12 +89,10 @@ async def create_sub_tables(hospital_uuid: str, db: Session = Depends(get_db)):
         )
         
         if success:
-            logger.info(f"Created tables for sub-hospital: {hospital_uuid}")
             return {"message": "Tables created successfully", "hospital_uuid": hospital_uuid, "details": message}
         else:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create tables: {message}")
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error creating tables for sub-hospital {hospital_uuid}: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error creating tables: {str(e)}")

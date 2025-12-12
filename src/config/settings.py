@@ -1,3 +1,6 @@
+"""
+Configuration settings for the multi-client Terraform backend.
+"""
 import os
 from pathlib import Path
 from typing import Optional
@@ -6,6 +9,8 @@ from pydantic import Field
 
 
 class Settings(BaseSettings):
+    """Application settings with environment variable support."""
+    
     api_title: str = "Multi-Client Terraform Provisioning API"
     api_version: str = "1.0.0"
     api_description: str = "API for provisioning isolated GCP infrastructure per client"
@@ -32,9 +37,12 @@ class Settings(BaseSettings):
     database_backup_object: str = "clients.db"
     database_backup_interval_seconds: int = 300
 
+    # Serve embedded frontend from container (set False for backend-only)
     serve_frontend: bool = False
     
     db_init_vm_name: str = "db-init-cluster-001-dev"
+    # Force the zone to the running init VM to avoid region mismatches when clients
+    # choose a different region (the VM is in me-central2-a).
     db_init_vm_zone: str = "me-central2-a"
     
     class Config:
@@ -42,5 +50,9 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
 
 
+# Global settings instance
 settings = Settings()
+
+# Ensure deployment directories exist
 settings.deployments_base_path.mkdir(parents=True, exist_ok=True)
+

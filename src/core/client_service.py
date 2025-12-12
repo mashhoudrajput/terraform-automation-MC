@@ -1,11 +1,8 @@
 import json
-import logging
 from typing import Optional, List
 from sqlalchemy.orm import Session
 from src.core.database import Client, ClientStatusEnum
 from src.models.models import ClientRegistrationRequest, ClientStatus, TerraformOutputs
-
-logger = logging.getLogger(__name__)
 
 
 class ClientService:
@@ -29,7 +26,6 @@ class ClientService:
         db.add(client)
         db.commit()
         db.refresh(client)
-        logger.info(f"Created client: {client.uuid} ({client.client_name})")
         return client
     
     @staticmethod
@@ -57,7 +53,6 @@ class ClientService:
                 client.error_message = error_message
             db.commit()
             db.refresh(client)
-            logger.debug(f"Updated client {client_uuid} status to {status.value}")
         return client
     
     @staticmethod
@@ -68,7 +63,6 @@ class ClientService:
             client.terraform_outputs = json.dumps(safe_outputs)
             db.commit()
             db.refresh(client)
-            logger.debug(f"Updated terraform outputs for client {client_uuid}")
         return client
     
     @staticmethod
@@ -78,8 +72,7 @@ class ClientService:
         try:
             outputs_dict = json.loads(outputs_json)
             return TerraformOutputs(**outputs_dict)
-        except Exception as e:
-            logger.warning(f"Failed to parse terraform outputs: {e}")
+        except Exception:
             return None
     
     @staticmethod

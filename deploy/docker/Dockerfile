@@ -54,7 +54,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 WORKDIR /app
 COPY src/ ./src/
 COPY infrastructure/ ./infrastructure/
-COPY .env /app/.env
+# Note: .env file not copied - use Cloud Run environment variables instead
 COPY deploy/docker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh && mkdir -p /data
