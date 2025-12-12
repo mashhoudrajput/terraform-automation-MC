@@ -37,23 +37,20 @@ cd terraform-automation-MC
 ### Build and Run
 
 ```bash
-# Build Docker image
-./scripts/build.sh
+# Build Docker image (backend only)
+docker build -t mc-backend -f deploy/docker/Dockerfile .
 
-# Start the API container
-docker run -d \
-  --name terraform-backend-api \
-  -p 8000:8000 \
-  -v "$(pwd)/data:/data" \
-  -v "$(pwd)/infrastructure:/app/infrastructure:ro" \
+# Run locally (expects .env and terraform-sa.json in project root)
+mkdir -p data
+docker run --rm -p 8000:8000 \
+  --env-file .env \
   -v "$(pwd)/terraform-sa.json:/app/terraform-sa.json:ro" \
-  terraform-backend:latest
+  -v "$(pwd)/data:/data" \
+  mc-backend
 
-# Or use the deploy script
-./scripts/deploy.sh
-
-# Check health
+# Health / root
 curl http://localhost:8000/health
+curl http://localhost:8000/
 ```
 
 ### Quick Start Examples
@@ -62,6 +59,7 @@ curl http://localhost:8000/health
 # Register a main hospital (with UUID)
 curl -X POST http://localhost:8000/api/hospitals/register \
   -H 'Content-Type: application/json' \
+  -H 'X-API-Key: <your-api-key>' \
   -d '{
     "client_name": "City General Hospital",
     "client_uuid": "550e8400-e29b-41d4-a716-446655440000",
@@ -70,14 +68,17 @@ curl -X POST http://localhost:8000/api/hospitals/register \
   }'
 
 # Check status
-curl http://localhost:8000/api/hospitals/550e8400-e29b-41d4-a716-446655440000/status
+curl -H 'X-API-Key: <your-api-key>' \
+  http://localhost:8000/api/hospitals/550e8400-e29b-41d4-a716-446655440000/status
 
 # List all hospitals
-curl http://localhost:8000/api/hospitals
+curl -H 'X-API-Key: <your-api-key>' \
+  http://localhost:8000/api/hospitals
 
 # Register a sub-hospital (after main hospital completes)
 curl -X POST http://localhost:8000/api/hospitals/{parent_uuid}/sub-hospitals/register \
   -H 'Content-Type: application/json' \
+  -H 'X-API-Key: <your-api-key>' \
   -d '{
     "client_name": "City General - Branch A",
     "client_uuid": "660e8400-e29b-41d4-a716-446655440001",
@@ -86,18 +87,9 @@ curl -X POST http://localhost:8000/api/hospitals/{parent_uuid}/sub-hospitals/reg
   }'
 
 # Delete a hospital
-curl -X DELETE http://localhost:8000/api/clients/{uuid}
+curl -X DELETE http://localhost:8000/api/clients/{uuid} \
+  -H 'X-API-Key: <your-api-key>'
 ```
-
-### Access Frontend
-
-Open your browser: http://localhost:8000
-
-The frontend provides:
-- Hospital registration form (with UUID input)
-- Real-time status updates
-- Hospital list with delete functionality
-- Sub-hospital registration for completed hospitals
 
 ## Directory Structure
 
@@ -118,7 +110,6 @@ The frontend provides:
 ├── scripts/                    # Build, deploy, cleanup
 ├── data/                       # Runtime data (excluded from git)
 │   └── deployments/            # Client Terraform workspaces
-└── frontend/                   # Web UI
 ```
 
 ## Prerequisites
@@ -169,7 +160,7 @@ gcloud projects add-iam-policy-binding ${PROJECT_ID} \
 
 ## API Documentation
 
-Base URL: `http://localhost:8000`
+Base URL: `http://localhost:8000` (add header `X-API-Key: <your-api-key>`)
 
 ### Health Check
 
@@ -194,21 +185,20 @@ Check API health status.
 
 **GET** `/`
 
-Get API information and available endpoints.
+Lightweight liveness message.
 
 **Response:**
 ```json
 {
-  "message": "Multi-Client Terraform Provisioning API",
-  "version": "1.0.0",
-  "endpoints": {
-    "register": "POST /api/hospitals/register",
-    "status": "GET /api/hospitals/{uuid}/status",
-    "outputs": "GET /api/clients/{uuid}/outputs",
-    "list": "GET /api/hospitals"
-  }
+  "message": "Backend service running"
 }
 ```
+
+### API Info
+
+**GET** `/api`
+
+Returns version and endpoint info.
 
 ---
 
@@ -610,64 +600,24 @@ All error responses follow this format:
 
 ## How to Run
 
-### Option 1: Docker (Recommended)
+### Docker (Recommended)
 
 ```bash
-# 1. Build the Docker image
-./scripts/build.sh
+docker build -t mc-backend -f deploy/docker/Dockerfile .
 
-# 2. Start the container
-docker run -d \
-  --name terraform-backend-api \
-  -p 8000:8000 \
-  -v "$(pwd)/data:/data" \
-  -v "$(pwd)/infrastructure:/app/infrastructure:ro" \
+mkdir -p data
+docker run --rm -p 8000:8000 \
+  --env-file .env \
   -v "$(pwd)/terraform-sa.json:/app/terraform-sa.json:ro" \
-  terraform-backend:latest
-
-# 3. Check if running
-docker ps | grep terraform-backend-api
-
-# 4. View logs
-docker logs -f terraform-backend-api
-
-# 5. Stop the container
-docker stop terraform-backend-api
-docker rm terraform-backend-api
+  -v "$(pwd)/data:/data" \
+  mc-backend
 ```
 
-### Option 2: Local Development
+### Local Development
 
 ```bash
-# 1. Install dependencies
-cd src
-pip install -r requirements.txt
-
-# 2. Set environment variables (optional)
-export GCP_PROJECT_ID="lively-synapse-400818"
-export GCP_REGION="me-central2"
-export STATE_BUCKET_NAME="medical-circles-terraform-state-files"
-
-# 3. Run the API
-python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
-
-# 4. Access API
-# - API: http://localhost:8000
-# - Docs: http://localhost:8000/docs
-# - Frontend: http://localhost:8000
-```
-
-### Option 3: Using Deploy Script
-
-```bash
-# Build and deploy in one command
-./scripts/deploy.sh
-
-# This script:
-# 1. Builds the Docker image
-# 2. Stops any existing container
-# 3. Starts a new container
-# 4. Shows health status
+pip install -r src/requirements.txt
+API_KEY=... python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ## Development
