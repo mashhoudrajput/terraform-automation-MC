@@ -1,10 +1,7 @@
-"""
-Pydantic models for API requests and responses.
-"""
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional
 from enum import Enum
-from pydantic import BaseModel, Field, UUID4
+from pydantic import BaseModel, Field
 
 
 class ClientStatus(str, Enum):

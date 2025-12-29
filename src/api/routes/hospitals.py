@@ -79,7 +79,6 @@ async def create_tables(hospital_uuid: str, db: Session = Depends(get_db)):
         database_name = terraform_outputs.database_name if terraform_outputs else None
 
         if client.parent_uuid:
-            # Route sub-hospital calls to the sub-hospital handler to ensure the correct schema is applied.
             from src.core.services.db_sub import SubHospitalDBService
 
             if not database_name:

@@ -6,8 +6,6 @@ from src.core.terraform_service import TerraformService
 from src.core.services.db_main import MainHospitalDBService
 from src.core.services.db_sub import SubHospitalDBService
 from src.api.error_handler import enhance_terraform_error
-from src.config.settings import settings
-import re
 
 
 class BackgroundTaskManager:

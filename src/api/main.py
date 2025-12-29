@@ -1,10 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from src.config.settings import settings
 from src.core.database import init_db
 from src.core.db_backup import download_db_snapshot, start_periodic_backup, stop_periodic_backup
@@ -16,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Restore database snapshot (if configured) before initializing tables.
-    # Run with timeout to prevent blocking startup
     import threading
     download_complete = threading.Event()
     
@@ -31,7 +26,6 @@ async def lifespan(app: FastAPI):
     
     download_thread = threading.Thread(target=download_with_timeout, daemon=True)
     download_thread.start()
-    # Wait max 10 seconds for download, then continue
     download_complete.wait(timeout=10)
     
     init_db()
@@ -57,19 +51,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-if settings.serve_frontend:
-    try:
-        frontend_path = Path("/app/frontend")
-        if frontend_path.exists():
-            app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
-            
-            @app.get("/", tags=["Frontend"], include_in_schema=False)
-            async def serve_frontend():
-                return FileResponse(str(frontend_path / "index.html"))
-    except Exception:
-        pass
-
-# Simple root response for backend-only mode
 @app.get("/", tags=["Root"], include_in_schema=False)
 async def root():
     return {"message": "Backend service running"}

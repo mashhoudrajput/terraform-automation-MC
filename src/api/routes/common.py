@@ -77,7 +77,6 @@ async def delete_client(client_uuid: str, skip_infrastructure: bool = False, db:
     if not client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Client not found: {client_uuid}")
     
-    # If this is a main hospital, delete all sub-hospitals first
     if not client.parent_uuid:
         sub_hospitals = client_service.get_sub_hospitals(db, client_uuid)
         for sub_hospital in sub_hospitals:
@@ -85,10 +84,8 @@ async def delete_client(client_uuid: str, skip_infrastructure: bool = False, db:
                 client_service.update_client_status(db, sub_hospital.uuid, ClientStatusEnum.IN_PROGRESS)
                 sub_success, sub_error = terraform_service.destroy_client_infrastructure(sub_hospital.uuid)
                 if not sub_success:
-                    # Log error but continue with deletion
                     print(f"Warning: Failed to destroy sub-hospital {sub_hospital.uuid} infrastructure: {sub_error}")
             
-            # Delete sub-hospital record
             db.delete(sub_hospital)
             db.commit()
     
@@ -115,12 +112,6 @@ async def delete_client(client_uuid: str, skip_infrastructure: bool = False, db:
 
 @router.post("/api/clients/{client_uuid}/destroy-infrastructure")
 async def destroy_infrastructure_only(client_uuid: str, db: Session = Depends(get_db)):
-    """
-    Destroy infrastructure for a client UUID without requiring database record.
-    Useful for cleaning up orphaned infrastructure.
-    Workspace will be recreated from GCS state if it doesn't exist locally.
-    """
-    # Use destroy_client_infrastructure which handles workspace recreation
     success, error_message = terraform_service.destroy_client_infrastructure(client_uuid)
     
     if not success:

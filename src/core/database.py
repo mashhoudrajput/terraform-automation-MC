@@ -1,6 +1,3 @@
-"""
-Database configuration and models using SQLAlchemy.
-"""
 import logging
 from datetime import datetime
 from sqlalchemy import create_engine, Column, String, DateTime, Text, Enum, inspect, text
@@ -26,7 +23,6 @@ Base = declarative_base()
 
 
 class ClientStatusEnum(enum.Enum):
-    """Enum for client deployment status."""
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -34,7 +30,6 @@ class ClientStatusEnum(enum.Enum):
 
 
 class Client(Base):
-    """Client database model."""
     __tablename__ = "clients"
     
     uuid = Column(String(36), primary_key=True, index=True)
@@ -43,18 +38,16 @@ class Client(Base):
     status = Column(Enum(ClientStatusEnum), default=ClientStatusEnum.PENDING, nullable=False)
     environment = Column(String(20), nullable=False)
     region = Column(String(50), nullable=False)
-    parent_uuid = Column(String(36), nullable=True, index=True)  # For sub-hospitals
-    terraform_outputs = Column(Text, nullable=True)  # JSON string
+    parent_uuid = Column(String(36), nullable=True, index=True)
+    terraform_outputs = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
 def init_db():
-    """Initialize database tables."""
     Base.metadata.create_all(bind=engine)
     
-    # Add parent_uuid column if it doesn't exist (migration)
     try:
         inspector = inspect(engine)
         if 'clients' in inspector.get_table_names():
@@ -70,7 +63,6 @@ def init_db():
 
 
 def get_db():
-    """Dependency for getting database sessions."""
     db = SessionLocal()
     try:
         yield db

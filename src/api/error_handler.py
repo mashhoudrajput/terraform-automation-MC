@@ -1,17 +1,4 @@
-"""
-Error handling utilities for API
-"""
-
 def enhance_terraform_error(error_message: str) -> str:
-    """
-    Enhance Terraform error messages with helpful solutions.
-    
-    Args:
-        error_message: Original error message from Terraform
-        
-    Returns:
-        Enhanced error message with solution guidance
-    """
     enhancements = {
         "secretmanager.versions.access": (
             "\n\nSOLUTION: Grant Secret Manager Admin role to service account.\n"

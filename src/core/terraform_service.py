@@ -32,7 +32,6 @@ class TerraformService:
             if item.is_file() and not item.name.endswith('.template'):
                 shutil.copy2(item, workspace_path)
         
-        # Try to copy credentials file if available (optional - will use default if not found)
         credentials_src = Path("/app") / settings.gcp_credentials_file
         if not credentials_src.exists():
             credentials_src = settings.base_dir / settings.gcp_credentials_file
@@ -89,29 +88,21 @@ hospital_name = "{hospital_name}"
         backend_path.write_text(backend_content)
     
     def _setup_credentials(self, workspace_path: Path) -> Tuple[bool, Optional[Path], Optional[str]]:
-        """Setup GCP credentials. Returns (success, credentials_file_path, error_message).
-        Supports both file-based credentials and Cloud Run default credentials.
-        - If credentials file exists: uses file-based authentication
-        - If no file found: uses default credentials (Cloud Run attached service account)"""
         credentials_file = workspace_path / settings.gcp_credentials_file
         
-        # Check if credentials file already exists in workspace
         if credentials_file.exists():
             logger.info(f"Using credentials file from workspace: {credentials_file}")
             return True, credentials_file, None
         
-        # Try to find credentials file in common locations
         credentials_src = Path("/app") / settings.gcp_credentials_file
         if not credentials_src.exists():
             credentials_src = settings.base_dir / settings.gcp_credentials_file
         
         if credentials_src.exists():
-            # Copy credentials file to workspace
             shutil.copy2(credentials_src, credentials_file)
             logger.info(f"Using credentials file: {credentials_file}")
             return True, credentials_file, None
         else:
-            # No credentials file found - use default credentials (Cloud Run attached service account)
             logger.info("No credentials file found. Using default credentials (Cloud Run service account)")
             return True, None, None
     
@@ -123,7 +114,6 @@ hospital_name = "{hospital_name}"
         env = os.environ.copy()
         if credentials_file:
             env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
-        # If no credentials_file, use default credentials (Cloud Run attached service account)
         
         try:
             result = subprocess.run(
@@ -154,7 +144,6 @@ hospital_name = "{hospital_name}"
         env = os.environ.copy()
         if credentials_file:
             env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
-        # If no credentials_file, use default credentials (Cloud Run attached service account)
         
         try:
             result = subprocess.run(
@@ -185,7 +174,6 @@ hospital_name = "{hospital_name}"
         env = os.environ.copy()
         if credentials_file:
             env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
-        # If no credentials_file, use default credentials (Cloud Run attached service account)
         
         try:
             result = subprocess.run(
@@ -244,7 +232,6 @@ hospital_name = "{hospital_name}"
         env = os.environ.copy()
         if credentials_file:
             env['GOOGLE_APPLICATION_CREDENTIALS'] = str(credentials_file)
-        # If no credentials_file, use default credentials (Cloud Run attached service account)
         
         try:
             result = subprocess.run(
@@ -270,33 +257,26 @@ hospital_name = "{hospital_name}"
     def destroy_client_infrastructure(self, client_uuid: str) -> Tuple[bool, Optional[str]]:
         workspace_path = self.get_workspace_path(client_uuid)
         if not workspace_path.exists():
-            # Workspace doesn't exist - try to recreate minimal workspace for destroy
-            # This allows destroying infrastructure even if local workspace was deleted
             logger.info(f"Workspace not found for {client_uuid}, creating minimal workspace for destroy")
             workspace_path.mkdir(parents=True, exist_ok=True)
             
-            # Copy only essential files for destroy operation
             for item in self.template_path.iterdir():
                 if item.is_file() and not item.name.endswith('.template'):
                     shutil.copy2(item, workspace_path)
             
-            # Generate minimal backend config (state is in GCS)
             self.generate_backend_config(workspace_path, client_uuid)
             
-            # Try to initialize to pull state from GCS
             init_success, init_output = self.run_terraform_init(workspace_path)
             if not init_success:
-                # If init fails, workspace might not have state - consider it already destroyed
                 logger.warning(f"Terraform init failed for {client_uuid}: {init_output}")
                 try:
                     shutil.rmtree(workspace_path)
                 except:
                     pass
-                return True, None  # Assume already destroyed if can't init
+                return True, None
         
         success, output = self.run_terraform_destroy(workspace_path)
         if success:
-            # Clean up workspace after successful destroy
             try:
                 shutil.rmtree(workspace_path)
             except Exception as e:

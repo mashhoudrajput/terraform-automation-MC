@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 from typing import Tuple
 from urllib.parse import urlparse, unquote
-import pymysql
 from google.cloud import secretmanager
 from google.cloud import storage
 from google.oauth2 import service_account
@@ -68,19 +67,9 @@ class BaseDatabaseService:
         return db_name if db_name else f"db_{name[:8]}"
     
     def escape_password_for_shell(self, password: str) -> str:
-        """
-        Escape password for use in shell commands with single quotes.
-        Handles single quotes by ending quote, adding escaped quote, starting new quote.
-        Example: 'test' -> 'test'\''test'
-        """
-        # Replace single quotes with: ' (end quote) + \' (escaped quote) + ' (start quote)
         return password.replace("'", "'\\''")
 
     def generate_temp_ssh_key(self, env: dict) -> Tuple[Path, Path]:
-        """
-        Generate a temporary SSH key pair for this task only.
-        Returns (private_key_path, public_key_path).
-        """
         tmp_dir = Path(tempfile.mkdtemp())
         priv = tmp_dir / "task_key"
         pub = tmp_dir / "task_key.pub"
@@ -92,10 +81,6 @@ class BaseDatabaseService:
         return priv, pub
 
     def cleanup_os_login_key(self, env: dict, key_path: Path) -> None:
-        """
-        Remove only the OS Login SSH key created for this task.
-        Safe to call even if the key does not exist or removal fails.
-        """
         if not key_path:
             return
         try:
@@ -117,18 +102,14 @@ class BaseDatabaseService:
                     check=False,
                 )
         except Exception:
-            pass  # best-effort cleanup
+            pass
 
     def cleanup_local_key_files(self, priv: Path, pub: Path) -> None:
-        """
-        Remove temporary key files and their directory.
-        """
         try:
             if priv:
                 priv.unlink(missing_ok=True)
             if pub:
                 pub.unlink(missing_ok=True)
-            # remove parent dir if empty
             if pub and pub.parent.exists():
                 shutil.rmtree(pub.parent, ignore_errors=True)
         except Exception:

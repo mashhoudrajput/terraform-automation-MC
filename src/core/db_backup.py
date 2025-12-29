@@ -26,8 +26,6 @@ def _get_blob():
 
 
 def download_db_snapshot():
-    """Download the latest DB snapshot from GCS into the local SQLite file.
-    If download fails or times out, starts with empty database."""
     blob = _get_blob()
     if not blob:
         logger.info("DB backup bucket not configured; skipping download.")
@@ -45,7 +43,6 @@ def download_db_snapshot():
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = dest.with_suffix(dest.suffix + ".download")
     try:
-        # Download with timeout protection - if it hangs, we'll start fresh
         blob.download_to_filename(tmp_path, timeout=30)
         shutil.move(tmp_path, dest)
         logger.info("Downloaded database snapshot from GCS to %s", dest)
@@ -56,7 +53,6 @@ def download_db_snapshot():
 
 
 def _create_sqlite_backup(src: Path) -> Optional[Path]:
-    """Safely copy SQLite DB using SQLite backup API to avoid partial copies."""
     if not src.exists():
         return None
 
@@ -74,7 +70,6 @@ def _create_sqlite_backup(src: Path) -> Optional[Path]:
 
 
 def upload_db_snapshot():
-    """Upload the local SQLite DB to GCS."""
     blob = _get_blob()
     if not blob:
         return
@@ -104,7 +99,6 @@ def _sync_loop():
 
 
 def start_periodic_backup():
-    """Start periodic background uploads to GCS."""
     global _sync_thread
     if not settings.database_backup_bucket:
         logger.info("DB backup bucket not configured; periodic sync disabled.")
@@ -123,7 +117,6 @@ def start_periodic_backup():
 
 
 def stop_periodic_backup(run_final_upload: bool = True):
-    """Stop periodic sync and optionally perform a final upload."""
     if _sync_thread and _sync_thread.is_alive():
         _stop_event.set()
         _sync_thread.join(timeout=5)
