@@ -10,7 +10,9 @@ from src.config.settings import settings
 class SubHospitalDBService(BaseDatabaseService):
     def create_database(self, parent_uuid: str, sub_hospital_name: str, sub_hospital_uuid: str, private_bucket_name: str, region: str = None) -> Tuple[bool, str]:
         env = os.environ.copy()
-        env['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/terraform-sa.json')
+        creds = self.credentials_path
+        if creds:
+            env['GOOGLE_APPLICATION_CREDENTIALS'] = creds
         priv_key = pub_key = None
         try:
             priv_key, pub_key = self.generate_temp_ssh_key(env)
@@ -62,7 +64,9 @@ class SubHospitalDBService(BaseDatabaseService):
     
     def create_tables(self, client_uuid: str, parent_uuid: str, database_name: str, region: str, private_bucket_name: str) -> Tuple[bool, str]:
         env = os.environ.copy()
-        env['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/terraform-sa.json')
+        creds = self.credentials_path
+        if creds:
+            env['GOOGLE_APPLICATION_CREDENTIALS'] = creds
         priv_key = pub_key = None
         try:
             priv_key, pub_key = self.generate_temp_ssh_key(env)

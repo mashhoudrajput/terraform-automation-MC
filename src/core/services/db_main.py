@@ -10,7 +10,9 @@ from src.config.settings import settings
 class MainHospitalDBService(BaseDatabaseService):
     def create_tables(self, client_uuid: str, region: str, private_bucket_name: str) -> Tuple[bool, str]:
         env = os.environ.copy()
-        env['GOOGLE_APPLICATION_CREDENTIALS'] = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', '/app/terraform-sa.json')
+        creds = self.credentials_path
+        if creds:
+            env['GOOGLE_APPLICATION_CREDENTIALS'] = creds
         priv_key = pub_key = None
         try:
             priv_key, pub_key = self.generate_temp_ssh_key(env)

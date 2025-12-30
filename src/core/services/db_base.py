@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Optional, Dict
 from urllib.parse import urlparse, unquote
 from google.cloud import secretmanager
 from google.cloud import storage
@@ -18,22 +18,33 @@ class BaseDatabaseService:
         self.project_id = settings.gcp_project_id
     
     @property
+    def credentials_path(self) -> Optional[str]:
+        path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        if path and Path(path).exists():
+            return path
+            
+        for p in [Path("/app/terraform-sa.json"), Path("/app") / settings.gcp_credentials_file, settings.base_dir / settings.gcp_credentials_file]:
+            if p.exists():
+                return str(p)
+        return None
+
+    @property
     def secret_client(self):
         if self._secret_client is None:
-            credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-            if not credentials_path:
-                for path in [Path("/app/terraform-sa.json"), Path("/app") / settings.gcp_credentials_file, settings.base_dir / settings.gcp_credentials_file]:
-                    if path.exists():
-                        credentials_path = str(path)
-                        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
-                        break
-            
-            if credentials_path and Path(credentials_path).exists():
-                credentials = service_account.Credentials.from_service_account_file(credentials_path)
+            path = self.credentials_path
+            if path:
+                credentials = service_account.Credentials.from_service_account_file(path)
                 self._secret_client = secretmanager.SecretManagerServiceClient(credentials=credentials)
             else:
                 self._secret_client = secretmanager.SecretManagerServiceClient()
         return self._secret_client
+    
+    def _get_storage_client(self):
+        path = self.credentials_path
+        if path:
+            credentials = service_account.Credentials.from_service_account_file(path)
+            return storage.Client(project=self.project_id, credentials=credentials)
+        return storage.Client(project=self.project_id)
     
     def parse_connection_uri(self, connection_uri: str) -> dict:
         parsed = urlparse(connection_uri)
@@ -52,7 +63,7 @@ class BaseDatabaseService:
     
     def upload_sql_to_bucket(self, bucket_name: str, client_uuid: str, sql_content: str, sql_filename: str = "cluster_hospitals.sql") -> Tuple[bool, str]:
         try:
-            storage_client = storage.Client(project=settings.gcp_project_id)
+            storage_client = self._get_storage_client()
             bucket = storage_client.bucket(bucket_name)
             blob_path = f"database-init/{client_uuid}/{sql_filename}"
             blob = bucket.blob(blob_path)

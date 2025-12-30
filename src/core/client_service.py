@@ -1,5 +1,5 @@
 import json
-from typing import Optional, List
+from typing import Optional, List, Any
 from sqlalchemy.orm import Session
 from src.core.database import Client, ClientStatusEnum
 from src.models.models import ClientRegistrationRequest, ClientStatus, TerraformOutputs
@@ -8,8 +8,17 @@ from src.models.models import ClientRegistrationRequest, ClientStatus, Terraform
 class ClientService:
     @staticmethod
     def create_client(db: Session, request: ClientRegistrationRequest) -> Client:
-        if ClientService.get_client_by_uuid(db, request.client_uuid):
-            raise ValueError(f"Client with UUID {request.client_uuid} already exists")
+        existing = ClientService.get_client_by_uuid(db, request.client_uuid)
+        if existing:
+            if existing.status == ClientStatusEnum.FAILED:
+                # Reset for retry
+                existing.status = ClientStatusEnum.PENDING
+                existing.error_message = None
+                existing.client_name = request.client_name
+                db.commit()
+                db.refresh(existing)
+                return existing
+            raise ValueError(f"Client with UUID {request.client_uuid} already exists and is in {existing.status.value} status")
         
         job_id = f"job-{request.client_uuid}"
         client = Client(
@@ -66,11 +75,16 @@ class ClientService:
         return client
     
     @staticmethod
-    def parse_terraform_outputs(outputs_json: Optional[str]) -> Optional[TerraformOutputs]:
-        if not outputs_json:
+    def parse_terraform_outputs(outputs: Optional[Any]) -> Optional[TerraformOutputs]:
+        if not outputs:
             return None
         try:
-            outputs_dict = json.loads(outputs_json)
+            if isinstance(outputs, str):
+                outputs_dict = json.loads(outputs)
+            elif isinstance(outputs, dict):
+                outputs_dict = outputs
+            else:
+                return None
             return TerraformOutputs(**outputs_dict)
         except Exception:
             return None

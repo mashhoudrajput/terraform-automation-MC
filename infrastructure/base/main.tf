@@ -146,6 +146,12 @@ resource "google_sql_database_instance" "mysql" {
     prevent_destroy = false
     ignore_changes  = [settings[0].disk_size]
   }
+
+  timeouts {
+    create = "60m"
+    update = "60m"
+    delete = "60m"
+  }
 }
 
 resource "google_sql_database" "database" {

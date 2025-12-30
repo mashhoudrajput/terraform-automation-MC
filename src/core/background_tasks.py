@@ -1,4 +1,5 @@
 import threading
+import logging
 from typing import Dict, Any
 from src.core.database import SessionLocal, ClientStatusEnum
 from src.core.client_service import ClientService
@@ -6,6 +7,8 @@ from src.core.terraform_service import TerraformService
 from src.core.services.db_main import MainHospitalDBService
 from src.core.services.db_sub import SubHospitalDBService
 from src.api.error_handler import enhance_terraform_error
+
+logger = logging.getLogger(__name__)
 
 
 class BackgroundTaskManager:
@@ -36,6 +39,24 @@ class BackgroundTaskManager:
                 if success:
                     client_service.update_client_outputs(db, client_uuid, outputs)
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.COMPLETED)
+                    
+                    # Auto-create tables for main hospital
+                    try:
+                        region = client_info.get('region')
+                        terraform_outputs = client_service.parse_terraform_outputs(outputs)
+                        private_bucket_name = terraform_outputs.private_bucket_name if terraform_outputs else None
+                        
+                        if private_bucket_name:
+                            logger.info(f"Auto-creating tables for hospital {client_uuid}...")
+                            table_success, table_message = db_service.create_tables(client_uuid, region, private_bucket_name)
+                            if table_success:
+                                logger.info(f"Tables created successfully for hospital {client_uuid}")
+                            else:
+                                logger.warning(f"Failed to auto-create tables for hospital {client_uuid}: {table_message}")
+                        else:
+                            logger.warning(f"Private bucket name not found in outputs for hospital {client_uuid}")
+                    except Exception as table_error:
+                        logger.error(f"Error during auto table creation for hospital {client_uuid}: {str(table_error)}")
                 else:
                     enhanced_error = enhance_terraform_error(error_message)
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, enhanced_error)
@@ -86,6 +107,35 @@ class BackgroundTaskManager:
                 if success:
                     client_service.update_client_outputs(db, client_uuid, outputs)
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.COMPLETED)
+                    
+                    # Auto-create tables for sub-hospital
+                    try:
+                        from src.core.services.db_sub import SubHospitalDBService
+                        
+                        region = client_info.get('region')
+                        terraform_outputs = client_service.parse_terraform_outputs(outputs)
+                        private_bucket_name = terraform_outputs.private_bucket_name if terraform_outputs else None
+                        database_name = terraform_outputs.database_name if terraform_outputs else None
+                        
+                        if private_bucket_name and database_name:
+                            logger.info(f"Auto-creating tables for sub-hospital {client_uuid}...")
+                            sub_db_service = SubHospitalDBService()
+                            table_success, table_message = sub_db_service.create_tables(
+                                client_uuid, parent_uuid, database_name, region, private_bucket_name
+                            )
+                            if table_success:
+                                logger.info(f"Tables created successfully for sub-hospital {client_uuid}")
+                            else:
+                                logger.warning(f"Failed to auto-create tables for sub-hospital {client_uuid}: {table_message}")
+                        else:
+                            missing = []
+                            if not private_bucket_name:
+                                missing.append("private_bucket_name")
+                            if not database_name:
+                                missing.append("database_name")
+                            logger.warning(f"Missing required outputs for sub-hospital {client_uuid}: {', '.join(missing)}")
+                    except Exception as table_error:
+                        logger.error(f"Error during auto table creation for sub-hospital {client_uuid}: {str(table_error)}")
                 else:
                     enhanced_error = enhance_terraform_error(error_message)
                     client_service.update_client_status(db, client_uuid, ClientStatusEnum.FAILED, enhanced_error)

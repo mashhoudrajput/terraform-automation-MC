@@ -31,6 +31,14 @@ def enhance_terraform_error(error_message: str) -> str:
         "Permission denied": (
             "\n\nSOLUTION: Service account lacks required GCP permissions.\n"
             "See: infrastructure/base/PERMISSIONS.txt for complete list."
+        ),
+        "Error waiting for Create Instance": (
+            "\n\nSOLUTION: Terraform timed out waiting for Cloud SQL instance to be ready.\n"
+            "This can happen if the region is congested. Try registering the hospital again (Retry)."
+        ),
+        "timed out after": (
+            "\n\nSOLUTION: The deployment operation timed out.\n"
+            "The infrastructure may still be creating in the background. Please wait a few minutes and try again."
         )
     }
     
