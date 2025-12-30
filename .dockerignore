@@ -65,9 +65,11 @@ Thumbs.db
 *.backup
 *.bak
 
-# Credentials (keep these - they're copied explicitly)
-# terraform-sa.json - NOT ignored (needed in image)
-# .env - NOT ignored (needed in image)
+# Credentials
+terraform-sa.json
+*-sa.json
+.env
+.env.*
 
 # Frontend (not used in backend-only image)
 frontend/

@@ -57,6 +57,7 @@ curl http://localhost:8000/
 
 ```bash
 # Register a main hospital (with UUID)
+# Tables will be automatically created upon successful infrastructure provisioning
 curl -X POST http://localhost:8000/api/hospitals/register \
   -H 'Content-Type: application/json' \
   -H 'X-API-Key: <your-api-key>' \
@@ -66,6 +67,10 @@ curl -X POST http://localhost:8000/api/hospitals/register \
     "environment": "prod",
     "region": "me-central2"
   }'
+
+# Manually trigger table creation (if needed)
+curl -X POST http://localhost:8000/api/hospitals/550e8400-e29b-41d4-a716-446655440000/create-tables \
+  -H 'X-API-Key: <your-api-key>'
 
 # Check status
 curl -H 'X-API-Key: <your-api-key>' \
@@ -86,10 +91,20 @@ curl -X POST http://localhost:8000/api/hospitals/{parent_uuid}/sub-hospitals/reg
     "region": "me-central2"
   }'
 
+# Manually trigger sub-hospital table creation
+curl -X POST http://localhost:8000/api/hospitals/660e8400-e29b-41d4-a716-446655440001/sub-hospitals/create-tables \
+  -H 'X-API-Key: <your-api-key>'
+
 # Delete a hospital
 curl -X DELETE http://localhost:8000/api/clients/{uuid} \
   -H 'X-API-Key: <your-api-key>'
 ```
+
+### Automation & Table Creation
+
+- **Main Hospitals**: When you call `/register`, the system automatically provisions infrastructure AND executes the `cluster_hospitals.sql` schema on the new instance.
+- **Sub-Hospitals**: When you register a sub-hospital, the system automatically creates the new database AND executes the `subnetwork_hospitals.sql` schema.
+- **Manual Trigger**: If auto-creation fails or you need to re-run it, use the `/{uuid}/create-tables` (main) or `/{uuid}/sub-hospitals/create-tables` (sub) endpoints.
 
 ## Directory Structure
 
@@ -302,6 +317,46 @@ Register a new sub-hospital under a parent hospital. Sub-hospitals share the par
 - Sub-hospital uses parent's Cloud SQL instance
 - Sub-hospital database name = sanitized sub-hospital name
 - Deployment runs synchronously and may take 3-5 minutes
+
+---
+
+### Create Database Tables (Main)
+
+**POST** `/api/hospitals/{hospital_uuid}/create-tables`
+
+Manually trigger the creation of database tables for a main hospital using `cluster_hospitals.sql`.
+
+**Path Parameters:**
+- `hospital_uuid` (string, required): UUID of the hospital
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Tables created successfully",
+  "hospital_uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "details": "..."
+}
+```
+
+---
+
+### Create Database Tables (Sub)
+
+**POST** `/api/hospitals/{hospital_uuid}/sub-hospitals/create-tables`
+
+Manually trigger the creation of database tables for a sub-hospital using `subnetwork_hospitals.sql`.
+
+**Path Parameters:**
+- `hospital_uuid` (string, required): UUID of the sub-hospital
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Tables created successfully",
+  "hospital_uuid": "660e8400-e29b-41d4-a716-446655440001",
+  "details": "..."
+}
+```
 
 ---
 
